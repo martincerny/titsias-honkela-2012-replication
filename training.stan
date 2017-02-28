@@ -1,12 +1,13 @@
 functions {
-  void transcription_params_prior_lp(vector v, int num_elements)
+  void transcription_params_prior_lp(vector v)
   {
-    vector[num_elements] log_v = log(v);
+    vector[num_elements(v)] log_v = log(v);
     target += normal_lpdf(log_v | -0.5,2);
     target += -log_v;
   }
 }
 
+//TODO: replicates
 data {
   int num_time;
   
@@ -16,19 +17,21 @@ data {
   vector<lower = 0>[num_time] regulator_profiles_observed[num_regulators];
   vector<lower = 0>[num_time] regulator_profiles_sigma[num_regulators];
   
-  int num_targets;
-  vector<lower = 0>[num_time] target_profiles_observed[num_targets];
-  vector<lower = 0>[num_time] target_profiles_sigma[num_targets];
+  int num_genes;
+  vector<lower = 0>[num_time] gene_profiles_observed[num_genes];
+  vector<lower = 0>[num_time] gene_profiles_sigma[num_genes];
   
   //0 regulation impossible, 1 regulation possible
-  int interaction_matrix[num_regulators, num_targets];
+  int interaction_matrix[num_regulators, num_genes];
 }
 
 transformed data {
   int num_detailed_time = num_time * num_integration_points;
   real integration_step = 1.0 / num_integration_points;
-  
   vector[num_detailed_time] zero_mean;
+
+  //print("RegO:", regulator_profiles_observed);
+  //print("RegSig:", regulator_profiles_sigma);
 
   for (i in 1:num_detailed_time)  
   {
@@ -39,15 +42,15 @@ transformed data {
 parameters {
   vector[num_detailed_time] regulator_profiles_true_gp[num_regulators];
 
-  vector<lower = 0>[num_targets] model_mismatch_variance;
+  vector<lower = 0>[num_genes] model_mismatch_sigma;
 
-  vector<lower = 0>[num_targets] initial_conditions;
-  vector<lower = 0>[num_targets] basal_transcription;
-  vector<lower = 0>[num_targets] degradation;
-  vector<lower = 0>[num_targets] transcription_sensitivity;
-  vector[num_targets] interaction_bias;
+  vector<lower = 0>[num_genes] initial_conditions;
+  vector<lower = 0>[num_genes] basal_transcription;
+  vector<lower = 0>[num_genes] degradation;
+  vector<lower = 0>[num_genes] transcription_sensitivity;
+  vector[num_genes] interaction_bias;
   
-  real interaction_weights[num_regulators, num_targets];
+  real interaction_weights[num_regulators, num_genes];
 
   vector<lower = 0>[num_regulators] protein_initial_level;
   vector<lower = 0>[num_regulators] protein_degradation;
@@ -60,9 +63,10 @@ parameters {
 }
 
 model {
+  
   vector[num_detailed_time] regulator_profiles_true[num_regulators];
   vector[num_detailed_time] protein_profiles[num_regulators];
-  vector[num_time] target_profiles_true[num_targets];
+  vector[num_time] gene_profiles_true[num_genes];
   
 
   //----------First compute transformed data------------
@@ -70,7 +74,15 @@ model {
   //Transformation to ensure non-negativity
   for(regulator in 1:num_regulators)
   {
-    regulator_profiles_true[regulator] = log(1.0 + regulator_profiles_true_gp[regulator]);
+    regulator_profiles_true[regulator] = log1p_exp(regulator_profiles_true_gp[regulator]);
+	/*
+    for(time in 1:num_detailed_time){
+	  if(is_inf(regulator_profiles_true[regulator, time])){
+        print("Reg.prof_gp:",regulator, ",", time,":", regulator_profiles_true_gp[regulator,time], ", Length:", gp_length[regulator],", Variance: ", gp_variance[regulator]);
+        regulator_profiles_true[regulator, time] = 100;
+      }
+    }
+	*/
   }
   
   //TF protein synthesis
@@ -89,29 +101,37 @@ model {
     }
   }
   
-  //Target RNA synthesis
-  for (target in 1:num_targets) {
+  //gene RNA synthesis
+  for (gene in 1:num_genes) {
     for (time in 1:num_time) {
-      real basal_over_degradation = basal_transcription[target] / degradation[target];
-      real initial = basal_over_degradation + (initial_conditions[target] - basal_over_degradation) * exp(-degradation[target] * time);
+      real basal_over_degradation = basal_transcription[gene] / degradation[gene];
+      real initial = basal_over_degradation + (initial_conditions[gene] - basal_over_degradation) * exp(-degradation[gene] * time);
       
       real synthesis_accumulator = 0; 
       int detailed_time_index = (time - 1) * num_integration_points + 1;
       
       for (previous in 1:detailed_time_index) {
         real sigmoid_value;
-        real decay_exponent = -degradation[target] * (detailed_time_index - previous) * integration_step;
+        real decay_exponent = -degradation[gene] * (detailed_time_index - previous) * integration_step;
         
-        real regulation_input = interaction_bias[target];
+        real regulation_input = interaction_bias[gene];
         for (regulator in 1:num_regulators) 
         {
-          regulation_input = regulation_input + interaction_matrix[regulator, target] * interaction_weights[regulator, target] * log(protein_profiles[regulator, previous]);
+          regulation_input = regulation_input + interaction_matrix[regulator, gene] * interaction_weights[regulator, gene] * log(protein_profiles[regulator, previous]);
         }
         
         sigmoid_value = integration_step / (1.0 + exp(-regulation_input));
         synthesis_accumulator = synthesis_accumulator + sigmoid_value * exp(decay_exponent);
       }
-      target_profiles_true[target, time] = initial + transcription_sensitivity[target] * synthesis_accumulator;
+      gene_profiles_true[gene, time] = initial + transcription_sensitivity[gene] * synthesis_accumulator;
+      
+	  /*
+      if(is_nan(gene_profiles_true[gene, time]) || is_inf(gene_profiles_true[gene, time]))
+      {
+        print("gene ", gene, " weird: ", gene_profiles_true[gene, time], " init: ", initial_conditions[gene], " sensitivit: ", transcription_sensitivity[gene], " decay: ", degradation[gene], " weights: ", interaction_weights);
+        gene_profiles_true[gene, time] = 100;
+      }
+	  */
     }
   }  
   
@@ -127,15 +147,15 @@ model {
     }
   }
   
-  for (target in 1:num_targets) {
-    target_profiles_observed[target] ~ normal(target_profiles_true[target], target_profiles_sigma[target] + model_mismatch_variance[target]);
+  for (gene in 1:num_genes) {
+    gene_profiles_observed[gene] ~ normal(gene_profiles_true[gene], gene_profiles_sigma[gene] + model_mismatch_sigma[gene]);
   }
   
   //GP prior on regulators
   for (regulator in 1: num_regulators) {
     matrix[num_detailed_time, num_detailed_time] regulator_gp_covariance;
 
-    //Calculate covariance matrix    
+    //Calculate covariance matrix   
     for(detailed_time_index in 1:num_detailed_time) {
       regulator_gp_covariance[detailed_time_index, detailed_time_index] = gp_variance[regulator];
       for(other_time_index in (detailed_time_index + 1):num_detailed_time) {
@@ -148,24 +168,27 @@ model {
     regulator_profiles_true_gp[regulator] ~ multi_normal(zero_mean, regulator_gp_covariance);
   }
   
-  //Other priors
-  transcription_params_prior_lp(initial_conditions, num_targets);
-  transcription_params_prior_lp(basal_transcription, num_targets);
-  transcription_params_prior_lp(degradation, num_targets);
-  transcription_params_prior_lp(transcription_sensitivity, num_targets);
+  //in the paper, the prior is uniform, between the smallest difference a and squared length
+  gp_length ~ cauchy(3, 5);
   
-  transcription_params_prior_lp(protein_degradation, num_regulators);
+  gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
+  
+  
+  //Other priors
+  transcription_params_prior_lp(initial_conditions);
+  transcription_params_prior_lp(basal_transcription);
+  transcription_params_prior_lp(degradation);
+  transcription_params_prior_lp(transcription_sensitivity);
+  
+  transcription_params_prior_lp(protein_degradation);
   
   interaction_bias ~ normal(0,2);
 
   //The following differs from the paper for simplicity (originally a conjugate inverse gamma)
-  model_mismatch_variance ~ cauchy(0, 2); 
+  model_mismatch_sigma ~ cauchy(0, 2); 
 
   for(regulator in 1:num_regulators) {
     interaction_weights[regulator] ~ normal(0,2);
   }
-  
-  gp_length ~ uniform(1, 144);
-  
-  gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
+
 }

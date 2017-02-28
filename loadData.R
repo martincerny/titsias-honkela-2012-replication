@@ -1,4 +1,3 @@
-library(drosgenome1.db)
 library(tigre)
 library(affy)
 library(oligo)
@@ -13,19 +12,25 @@ pData(expdata) <- data.frame("time.h" = rep(1:12, 3),row.names=rownames(pData(ex
 
 
 drosophila_mmgmos_exprs <- mmgmos(expdata)
-drosophila_mmgmos_fragment <- drosophila_mmgmos_exprs
-drosophila_gpsim_fragment <- processData(drosophila_mmgmos_fragment, experiments=rep(1:3, each=12))
+drosophila_gpsim_processed <- processData(drosophila_mmgmos_exprs, experiments=rep(1:3, each=12))
+drosophila_gpsim_normalized = normalizeGenes(drosophila_gpsim_processed)
+
+#Cleanup intermediary data
+rm(drosophila_mmgmos_exprs)
+rm(expdata)
+rm(expfiles)
+rm(drosophila_gpsim_processed)
 
 
-final_training_genes_ids = c(97,216,251,570,577,1325,2732,2733,2735,2773,3430,3888,3900,4133,4394,4512,4654,4795,10433,26403,30900,31313,38134,39039,40089)
+mapping = loadMapping();
 
-final_trainining_genes = sprintf("FBgn%07d",final_training_genes_ids)
+final_training_genes_ids = c(97,216,251,570,577,1325,2732,2733,2735,2773,3430,3888,3900,4133,4394,4512,4654,4795,10433,33509,30900,31313,38134,39039,40089)
+#The gene FBgn0026403 (from supplement) is actually coded in the mapping as FBgn0033509 so replaced in the line above
 
-#Mapping to recognized synonym:
-#570 -> 260400
-mapToSynonyms <- function(x)
-{
-  x[x == "FBgn0000570"] <- "FBgn0260400"
-}
+final_training_genes = sprintf("FBgn%07d",final_training_genes_ids)
 
-final_training_spots = mget(mapToSynonyms(final_trainining_genes), env=drosgenome1FLYBASE2PROBE)
+rm(final_training_genes_ids)
+
+final_training_spots = unlist(lapply(final_training_genes, spotsFromFBgn, mapping=mapping))
+
+twiSpotNames = spotsFromSymbol(mapping, "twi")
