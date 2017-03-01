@@ -1,9 +1,6 @@
 require(rstan)
 
-rstan_options(auto_write = TRUE)
-options(mc.cores = parallel::detectCores())
-
-trainModel <- function(regulatorSpots, genesSpots, normalizedData, ...)
+trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integration_points, ...)
 {
   regulatorIndices = rowIDsFromSpotNames(normalizedData, regulatorSpots);
   genesIndices = rowIDsFromSpotNames(normalizedData, genesSpots);
@@ -14,7 +11,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, ...)
   numGenes = length(genesIndices);
   
   modelData = list(num_time = length(drosophila_gpsim_normalized$times), 
-                   num_integration_points = 10, 
+                   num_integration_points = num_integration_points, 
                    num_regulators = numRegulators, 
                    regulator_profiles_observed = array(normalizedData$y[regulatorIndices, 1:12], c(numRegulators,12)), 
                    regulator_profiles_sigma = array(sqrt(normalizedData$yvar[regulatorIndices, 1:12]),c(numRegulators,12)), 

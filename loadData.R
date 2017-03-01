@@ -3,6 +3,7 @@ library(affy)
 library(oligo)
 library(puma)
 
+source("process.R")
 
 expfiles <- c(paste("array_data/embryo_tc_4_", 1:12, ".CEL", sep=""),
 paste("array_data/embryo_tc_6_", 1:12, ".CEL", sep=""),
@@ -34,3 +35,5 @@ rm(final_training_genes_ids)
 final_training_spots = unlist(lapply(final_training_genes, spotsFromFBgn, mapping=mapping))
 
 twiSpotNames = spotsFromSymbol(mapping, "twi")
+allTFSpots =  unlist(lapply(c("tin","bin","twi","bap","Mef2"), function(x) { spotsFromSymbol(mapping,x) } ))
+

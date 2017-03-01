@@ -29,13 +29,15 @@ transformed data {
   int num_detailed_time = num_time * num_integration_points;
   real integration_step = 1.0 / num_integration_points;
   vector[num_detailed_time] zero_mean;
+  real detailed_time[num_detailed_time];
 
   //print("RegO:", regulator_profiles_observed);
   //print("RegSig:", regulator_profiles_sigma);
 
   for (i in 1:num_detailed_time)  
   {
-    zero_mean[i] = 0;
+    detailed_time[i] = (i - 1) * integration_step;
+    zero_mean[i] = machine_precision();//0;
   }
 }
 
@@ -56,7 +58,7 @@ parameters {
   vector<lower = 0>[num_regulators] protein_degradation;
   
   vector<lower=0>[num_regulators] gp_variance;
-  vector<lower=0>[num_regulators] gp_length;
+  vector<lower=1>[num_regulators] gp_length;
 
 //  matrix<lower=0>[num_time * num_intermediate_points, num_regulators] protein_level;
 //  matrix<lower=0>[num_time * num_intermediate_points, num_regulators] protein_level_sigma;
@@ -153,23 +155,27 @@ model {
   
   //GP prior on regulators
   for (regulator in 1: num_regulators) {
+    /*
     matrix[num_detailed_time, num_detailed_time] regulator_gp_covariance;
 
     //Calculate covariance matrix   
     for(detailed_time_index in 1:num_detailed_time) {
       regulator_gp_covariance[detailed_time_index, detailed_time_index] = gp_variance[regulator];
       for(other_time_index in (detailed_time_index + 1):num_detailed_time) {
-        real value = gp_variance[regulator] * exp(-0.5 * (1 / gp_length[regulator]) * square((detailed_time_index - other_time_index) * integration_step));
+        real value = gp_variance[regulator] * exp((-0.5 / gp_length[regulator]) * square((detailed_time_index - other_time_index) * integration_step));
         regulator_gp_covariance[detailed_time_index, other_time_index] = value;
         regulator_gp_covariance[other_time_index, detailed_time_index] = value;
       }
-    }
+    }*/
     
+    matrix[num_detailed_time, num_detailed_time] regulator_gp_covariance = cov_exp_quad(detailed_time, gp_variance[regulator], gp_length[regulator]);
     regulator_profiles_true_gp[regulator] ~ multi_normal(zero_mean, regulator_gp_covariance);
   }
   
   //in the paper, the prior is uniform, between the smallest difference a and squared length
-  gp_length ~ cauchy(3, 5);
+  gp_length ~ cauchy(1, 5);
+  //square(gp_length) ~ cauchy(3, 5);
+  //target += log(gp_length);
   
   gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
   

@@ -1,9 +1,11 @@
 The first stages of preprocessing are exactly the same as in the examples for tigre R package?
 
 How are multiple probes for the same gene handled?
-	I noticed that the GPLearn method in tigre package, treats multiple probes for a target gene as separate targets to fit and will not accept multiple probes for a TF. However, results in your paper seem to merge those into a single profile - can you explain how is that done? The TF "BAP" has two probes, with very different temporal profiles, but it seems one of them was ingored in the paper. Is the other one mapped to a wrong part of the gene?
+	I noticed that the GPLearn method in tigre package, treats multiple probes for a target gene as separate targets to fit and will not accept multiple probes for a TF. However, results in your paper seem to merge those into a single profile - can you explain how is that done? 
 
 What were the training genes?
    The supplementary material lists the 25 training genes and a subset of the genes that were excluded from training due to high inferred adaptive variances. Is a full list of the 92 genes considered for training available? Further, is the list of their potential target/non-targets available?
+   
+How much dense was your grid for numerical integration? (i.e. how big was N_p)
    
 Jsem schopen se dostat ke spuštění tréninku - stačí ignorovat BAP. (pro BAP zdá se spustili jen první probe)
