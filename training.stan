@@ -37,14 +37,14 @@ transformed data {
   for (i in 1:num_detailed_time)  
   {
     detailed_time[i] = (i - 1) * integration_step;
-    zero_mean[i] = machine_precision();//0;
+    zero_mean[i] = 0;
   }
 }
 
 parameters {
   vector[num_detailed_time] regulator_profiles_true_gp[num_regulators];
 
-  vector<lower = 0>[num_genes] model_mismatch_sigma;
+  //vector<lower = 0>[num_genes] model_mismatch_sigma;
 
   vector<lower = 0>[num_genes] initial_conditions;
   vector<lower = 0>[num_genes] basal_transcription;
@@ -64,29 +64,35 @@ parameters {
 //  matrix<lower=0>[num_time * num_intermediate_points, num_regulators] protein_level_sigma;
 }
 
+transformed parameters {
+  vector[num_detailed_time] regulator_profiles_true[num_regulators];
+ 
+  //GP prior on regulators
+  for (regulator in 1: num_regulators) {
+    matrix[num_detailed_time, num_detailed_time] covariance = cov_exp_quad(detailed_time, gp_variance[regulator], gp_length[regulator]);
+    
+    matrix[num_detailed_time, num_detailed_time] covariance_cholesky;
+    
+    for (I in 1:num_detailed_time)
+    {
+      covariance[I, I] = covariance[I, I] + 1e-12;
+    }
+    
+    covariance_cholesky = cholesky_decompose(covariance);
+    
+    regulator_profiles_true[regulator] = log1p_exp(covariance_cholesky * regulator_profiles_true_gp[regulator]);
+  } 
+}
+
 model {
   
-  vector[num_detailed_time] regulator_profiles_true[num_regulators];
   vector[num_detailed_time] protein_profiles[num_regulators];
   vector[num_time] gene_profiles_true[num_genes];
   
 
   //----------First compute transformed data------------
   
-  //Transformation to ensure non-negativity
-  for(regulator in 1:num_regulators)
-  {
-    regulator_profiles_true[regulator] = log1p_exp(regulator_profiles_true_gp[regulator]);
-	/*
-    for(time in 1:num_detailed_time){
-	  if(is_inf(regulator_profiles_true[regulator, time])){
-        print("Reg.prof_gp:",regulator, ",", time,":", regulator_profiles_true_gp[regulator,time], ", Length:", gp_length[regulator],", Variance: ", gp_variance[regulator]);
-        regulator_profiles_true[regulator, time] = 100;
-      }
-    }
-	*/
-  }
-  
+
   //TF protein synthesis
   for (regulator in 1:num_regulators)
   {
@@ -150,33 +156,17 @@ model {
   }
   
   for (gene in 1:num_genes) {
-    gene_profiles_observed[gene] ~ normal(gene_profiles_true[gene], gene_profiles_sigma[gene] + model_mismatch_sigma[gene]);
+    gene_profiles_observed[gene] ~ normal(gene_profiles_true[gene], gene_profiles_sigma[gene]);// + model_mismatch_sigma[gene]);
   }
   
   //GP prior on regulators
   for (regulator in 1: num_regulators) {
-    /*
-    matrix[num_detailed_time, num_detailed_time] regulator_gp_covariance;
-
-    //Calculate covariance matrix   
-    for(detailed_time_index in 1:num_detailed_time) {
-      regulator_gp_covariance[detailed_time_index, detailed_time_index] = gp_variance[regulator];
-      for(other_time_index in (detailed_time_index + 1):num_detailed_time) {
-        real value = gp_variance[regulator] * exp((-0.5 / gp_length[regulator]) * square((detailed_time_index - other_time_index) * integration_step));
-        regulator_gp_covariance[detailed_time_index, other_time_index] = value;
-        regulator_gp_covariance[other_time_index, detailed_time_index] = value;
-      }
-    }*/
-    
-    matrix[num_detailed_time, num_detailed_time] regulator_gp_covariance = cov_exp_quad(detailed_time, gp_variance[regulator], gp_length[regulator]);
-    regulator_profiles_true_gp[regulator] ~ multi_normal(zero_mean, regulator_gp_covariance);
+    regulator_profiles_true_gp[regulator] ~ normal(0, 1);
   }
   
   //in the paper, the prior is uniform, between the smallest difference a and squared length
   gp_length ~ cauchy(1, 5);
-  //square(gp_length) ~ cauchy(3, 5);
-  //target += log(gp_length);
-  
+
   gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
   
   
@@ -187,11 +177,12 @@ model {
   transcription_params_prior_lp(transcription_sensitivity);
   
   transcription_params_prior_lp(protein_degradation);
+  transcription_params_prior_lp(protein_initial_level);
   
   interaction_bias ~ normal(0,2);
 
   //The following differs from the paper for simplicity (originally a conjugate inverse gamma)
-  model_mismatch_sigma ~ cauchy(0, 2); 
+  //model_mismatch_sigma ~ cauchy(0, 2); 
 
   for(regulator in 1:num_regulators) {
     interaction_weights[regulator] ~ normal(0,2);
