@@ -2,7 +2,7 @@ functions {
   void transcription_params_prior_lp(vector v)
   {
     vector[num_elements(v)] log_v = log(v);
-    target += normal_lpdf(log_v | -0.5,2);
+    target += normal_lpdf(log_v | -0.5,sqrt2());
     target += -log_v;
   }
 }

@@ -2,7 +2,7 @@ functions {
   void transcription_params_prior_lp(real v)
   {
     real log_v = log(v);
-    target += normal_lpdf(log_v | -0.5,10);
+    target += normal_lpdf(log_v | -0.5, sqrt2());
     target += -log_v;
   }
 }
@@ -10,36 +10,31 @@ functions {
 //TODO: replicates
 data {
   int num_time;
+  int num_replicates;
   
   int num_integration_points;
   
   int num_regulators; 
-  vector<lower = 0>[num_time * num_integration_points] tf_profiles[num_regulators];
+  vector<lower = 0>[num_time * num_integration_points] tf_profiles[num_replicates, num_regulators];
 
-  vector<lower = 0>[num_time] gene_profile_observed;
-  vector<lower = 0>[num_time] gene_profile_sigma;
+  vector<lower = 0>[num_time] gene_profile_observed[num_replicates];
+  vector<lower = 0>[num_time] gene_profile_sigma[num_replicates];
   
 }
 
 transformed data {
   int num_detailed_time = num_time * num_integration_points;
   real integration_step = 1.0 / num_integration_points;
-  vector[num_detailed_time] zero_mean;
   real detailed_time[num_detailed_time];
-  
-  //print("RegO:", regulator_profiles_observed);
-  //print("RegSig:", regulator_profiles_sigma);
-  
-  for (i in 1:num_detailed_time)  
-  {
-    detailed_time[i] = (i - 1) * integration_step;
-    zero_mean[i] = 0;
-  }
+  /*
+  for(i in 1:num_replicates) {
+      print("Rep",i,": ",gene_profile_observed[i]);
+  }*/
 }
 
 parameters {
 
-  real<lower = 0> initial_condition;
+  real<lower = 0> initial_condition[num_replicates];
   real<lower = 0> basal_transcription;
   real<lower = 0> degradation;
   real<lower = 0> transcription_sensitivity;
@@ -51,48 +46,52 @@ parameters {
 }
 
 transformed parameters {
-  vector[num_time] gene_profile_true;
+  vector[num_time] gene_profile_true[num_replicates];
   
   //gene RNA synthesis
   { //new scope to make the variables local
     real degradation_per_unit_time = exp(-degradation);
     real basal_over_degradation = basal_transcription / degradation;
-    real initial_residual = (initial_condition - basal_over_degradation);
     real previously_synthetized_residual = 0;
 
 //!Init -> time 1!
-    gene_profile_true[1] = initial_condition;
-    for (time in 2:num_time) {
-    
-      real initial = basal_over_degradation + (initial_condition - basal_over_degradation) * exp(-degradation * time);
+    for (replicate in 1:num_replicates)
+    {
+      real initial_residual = (initial_condition[replicate] - basal_over_degradation);
       
-      real synthesis_accumulator = 0; 
-
-      int previous_detailed_time = (time - 2) * num_integration_points + 1;
+      gene_profile_true[replicate, 1] = initial_condition[replicate];
+      for (time in 2:num_time) {
       
-      for (mid_step in 1:num_integration_points) {
-        real sigmoid_value;
-        real decay_exponent = -degradation * (num_integration_points - mid_step) * integration_step;
+        real initial = basal_over_degradation + (initial_condition[replicate] - basal_over_degradation) * exp(-degradation * time);
         
-        //TODO maybe put log(tf_profiles) in transformed data
-        real regulation_input = interaction_bias + dot_product(interaction_weights, log(tf_profiles[,previous_detailed_time + mid_step]));
-
-        sigmoid_value = integration_step / (1.0 + exp(-regulation_input));
-        synthesis_accumulator = synthesis_accumulator + sigmoid_value * exp(decay_exponent);
-      }
-      
-      initial_residual = initial_residual * degradation_per_unit_time;
-      previously_synthetized_residual = previously_synthetized_residual * degradation_per_unit_time + synthesis_accumulator; 
-      
-      gene_profile_true[time] = basal_over_degradation + initial_residual + transcription_sensitivity * previously_synthetized_residual;
-      
-      /*
-        if(is_nan(gene_profiles_true[gene, time]) || is_inf(gene_profiles_true[gene, time]))
-        {
-          print("gene ", gene, " weird: ", gene_profiles_true[gene, time], " init: ", initial_conditions[gene], " sensitivit: ", transcription_sensitivity[gene], " decay: ", degradation[gene], " weights: ", interaction_weights);
-          gene_profiles_true[gene, time] = 100;
+        real synthesis_accumulator = 0; 
+  
+        int previous_detailed_time = (time - 2) * num_integration_points + 1;
+        
+        for (mid_step in 1:num_integration_points) {
+          real sigmoid_value;
+          real decay_exponent = -degradation * (num_integration_points - mid_step) * integration_step;
+          
+          //TODO maybe put log(tf_profiles) in transformed data
+          real regulation_input = interaction_bias + dot_product(interaction_weights, log(tf_profiles[replicate,,previous_detailed_time + mid_step]));
+  
+          sigmoid_value = integration_step / (1.0 + exp(-regulation_input));
+          synthesis_accumulator = synthesis_accumulator + sigmoid_value * exp(decay_exponent);
         }
-      */
+        
+        initial_residual = initial_residual * degradation_per_unit_time;
+        previously_synthetized_residual = previously_synthetized_residual * degradation_per_unit_time + synthesis_accumulator; 
+        
+        gene_profile_true[replicate, time] = basal_over_degradation + initial_residual + transcription_sensitivity * previously_synthetized_residual;
+        
+        /*
+          if(is_nan(gene_profiles_true[gene, time]) || is_inf(gene_profiles_true[gene, time]))
+          {
+            print("gene ", gene, " weird: ", gene_profiles_true[gene, time], " init: ", initial_conditions[gene], " sensitivit: ", transcription_sensitivity[gene], " decay: ", degradation[gene], " weights: ", interaction_weights);
+            gene_profiles_true[gene, time] = 100;
+          }
+        */
+      }
     }
   }
 }
@@ -102,12 +101,16 @@ model {
 
   
   //-----------Now the actual model-------------------------------------
+  for(replicate in 1:num_replicates)
+  {
+    gene_profile_observed[replicate] ~ normal(gene_profile_true[replicate], gene_profile_sigma[replicate]); //+ model_mismatch_sigma);
     
-  gene_profile_observed ~ normal(gene_profile_true, gene_profile_sigma); //+ model_mismatch_sigma);
+    //Here we diverge from the original model. At least for simulated data, no prior on initial_condition works better
+    //transcription_params_prior_lp(initial_condition[replicate]);
+  }
 
 
   //Other priors
-  transcription_params_prior_lp(initial_condition);
   transcription_params_prior_lp(basal_transcription);
   transcription_params_prior_lp(degradation);
   transcription_params_prior_lp(transcription_sensitivity);
