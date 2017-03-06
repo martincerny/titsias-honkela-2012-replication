@@ -88,3 +88,12 @@ testPrediction <- function(numTargets = 5, numIntegrationPoints = 10, ...) {
   options(ow);
   return(list(fits = fits, data = simulatedData));
 }
+
+averageSamplingTime <- function(fits)
+{
+  timeList = lapply(testResults$fits, get_elapsed_time)
+  allTimes = Reduce(rbind,timeList, array(0,c(0,2)))
+  warmupTimes = allTimes[,"warmup"]
+  sampleTimes = allTimes[,"sample"]
+  return(list(total = mean(warmupTimes + sampleTimes), sample = mean(sampleTimes)))
+}
