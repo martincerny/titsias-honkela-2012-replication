@@ -45,10 +45,10 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   proteinDegradation = 0.4;#exp(rnorm(1, -0.5,2));
   proteinInitialLevel = 0.8;#exp(rnorm(1, -0.5,2));
   
-  initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,2)), c(numTargets, numReplicates));
-  basalTranscription = exp(rnorm(numTargets, -0.5,2));
-  degradation = exp(rnorm(numTargets, -0.5,2));
-  sensitivity = exp(rnorm(numTargets, -0.5,2));
+  initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,1)), c(numTargets, numReplicates));
+  basalTranscription = exp(rnorm(numTargets, -0.5,1));
+  degradation = exp(rnorm(numTargets, -0.5,1));
+  sensitivity = exp(rnorm(numTargets, -0.5,1));
   
   bias = rnorm(numTargets, 0, 1);
   
