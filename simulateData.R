@@ -28,7 +28,7 @@ bindReplicates <- function(a,b) {
   abind(a,b, along = 1);
 }
 
-simulateData <- function(regulatorProfile, numIntegrationPoints = 4,numTargets = 4, numReplicates = 3)
+simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets = 4, numReplicates = 3)
 {
   time = 1:length(regulatorProfile);
   
@@ -40,7 +40,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 4,numTargets =
   }
   
   step = 1/numIntegrationPoints;
-  integrationTime = seq(from = 1, to = length(regulatorProfile) + step, by = step);
+  integrationTime = seq(from = 1, to = length(regulatorProfile) + 0.00001, by = step);
   
   proteinDegradation = 0.4;#exp(rnorm(1, -0.5,2));
   proteinInitialLevel = 0.8;#exp(rnorm(1, -0.5,2));

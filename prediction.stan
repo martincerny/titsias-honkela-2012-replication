@@ -5,6 +5,11 @@ functions {
     target += normal_lpdf(log_v | -0.5, sqrt2());
     target += -log_v;
   }
+  
+  int count_num_detailed_time(int num_time, int num_integration_points)
+  {
+    return (num_time - 1) * num_integration_points + 1;
+  }
 }
 
 //TODO: replicates
@@ -15,7 +20,7 @@ data {
   int num_integration_points;
   
   int num_regulators; 
-  vector<lower = 0>[num_time * num_integration_points] tf_profiles[num_replicates, num_regulators];
+  vector<lower = 0>[count_num_detailed_time(num_time, num_integration_points)] tf_profiles[num_replicates, num_regulators];
 
   vector<lower = 0>[num_time] gene_profile_observed[num_replicates];
   vector<lower = 0>[num_time] gene_profile_sigma[num_replicates];
@@ -23,9 +28,8 @@ data {
 }
 
 transformed data {
-  int num_detailed_time = num_time * num_integration_points;
+  int num_detailed_time = count_num_detailed_time(num_time, num_integration_points);
   real integration_step = 1.0 / num_integration_points;
-  real detailed_time[num_detailed_time];
   /*
   for(i in 1:num_replicates) {
       print("Rep",i,": ",gene_profile_observed[i]);

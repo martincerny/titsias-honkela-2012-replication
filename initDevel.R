@@ -1,3 +1,4 @@
+source("misc.R")
 source("geneMapping.R")
 source("training.r")
 source("prediction.R")
