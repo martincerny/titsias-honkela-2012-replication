@@ -56,11 +56,11 @@ transformed parameters {
   { //new scope to make the variables local
     real degradation_per_unit_time = exp(-degradation);
     real basal_over_degradation = basal_transcription / degradation;
-    real previously_synthetized_residual = 0;
 
 //!Init -> time 1!
     for (replicate in 1:num_replicates)
     {
+      real previously_synthetized_residual = 0;
       real initial_residual = (initial_condition[replicate] - basal_over_degradation);
       
       gene_profile_true[replicate, 1] = initial_condition[replicate];

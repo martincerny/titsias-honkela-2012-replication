@@ -23,9 +23,9 @@ targetODE <- function(t, state, parameters)
 bindReplicates <- function(a,b) {
   dimsA = dim(a);
   if(length(dimsA) == 2) {
-    a = array(a,c(1,dimsA[1],dimsA[2]))
+    a = array(a,c(dimsA[1],1,dimsA[2]))
   }
-  abind(a,b, along = 1);
+  abind(a,b, along = 2);
 }
 
 simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets = 4, numReplicates = 3)
@@ -37,15 +37,16 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   for(i in 2:numReplicates)
   {
     regulatorReplicates[i,] = regulatorProfile + rnorm(length(time), 0,1);
+    regulatorReplicates[regulatorReplicates < 0.05] = 0.05;
   }
   
   step = 1/numIntegrationPoints;
   integrationTime = seq(from = 1, to = length(regulatorProfile) + 0.00001, by = step);
   
-  proteinDegradation = 0.4;#exp(rnorm(1, -0.5,2));
-  proteinInitialLevel = 0.8;#exp(rnorm(1, -0.5,2));
+  proteinDegradation = exp(rnorm(1, -0.5,0.3));
+  proteinInitialLevel = exp(rnorm(1, -0.5,0.3));
   
-  initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,1)), c(numTargets, numReplicates));
+  initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,1)), c(numReplicates, numTargets));
   basalTranscription = exp(rnorm(numTargets, -0.5,1));
   degradation = exp(rnorm(numTargets, -0.5,1));
   sensitivity = exp(rnorm(numTargets, -0.5,1));
@@ -78,9 +79,9 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   spots = character(numTargets + 1);
   spots[1] = "reg";
 
-  targetValues = array(0, c(numTargets, numReplicates, length(time)));
-  targetObserved = array(0, c(numTargets, numReplicates, length(time)));
-  targetSigma = array(0, c(numTargets, numReplicates, length(time)));
+  targetValues = array(0, c(numReplicates, numTargets, length(time)));
+  targetObserved = array(0, c(numReplicates, numTargets, length(time)));
+  targetSigma = array(0, c(numReplicates, numTargets, length(time)));
   for(i in 1:numTargets)
   {
 
@@ -88,11 +89,11 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     {
       params = c(degradation = degradation[i], bias = bias[i], sensitivity = sensitivity[i], weight = interactionWeights[i], protein = approxfun(integrationTime, regulatorProtein[j,], rule=2));  
       
-      targetValues[i,j,] = ode( y = c(x = initialConditions[i,j]), times = time, func = targetODE, parms = params, method = "ode45")[,"x"];
+      targetValues[j,i,] = ode( y = c(x = initialConditions[j,i]), times = time, func = targetODE, parms = params, method = "ode45")[,"x"];
       
-      targetSigma[i,j,] = sigmaGenerator(length(time));
+      targetSigma[j,i,] = sigmaGenerator(length(time));
       
-      targetObserved[i,j,] = targetValues[i,j,] + rnorm(length(time)) * targetSigma[i,j,]
+      targetObserved[j,i,] = targetValues[j,i,] + rnorm(length(time)) * targetSigma[j,i,]
       
     }    
     

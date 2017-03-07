@@ -16,17 +16,17 @@ predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoi
                    num_regulators = numRegulators, 
                    num_replicates = numReplicates,
                    tf_profiles = array(tfProfiles, c(numReplicates,numRegulators,numDetailedTime)), 
-                   gene_profile_observed = array(normalizedData$y[geneIndex, , 1:numTime], c(numReplicates, numTime)), 
-                   gene_profile_sigma = array(sqrt(normalizedData$yvar[geneIndex, , 1:numTime]), c(numReplicates, numTime))
+                   gene_profile_observed = array(normalizedData$y[,geneIndex, 1:numTime], c(numReplicates, numTime)), 
+                   gene_profile_sigma = array(sqrt(normalizedData$yvar[,geneIndex, 1:numTime]), c(numReplicates, numTime))
   );
   return(stan('prediction.stan', data = modelData, ...));
 }
 
 
-plotPredictFit <- function(prediction, replicate, targetProfile, targetSigma, observedProfile, numSamples = 10, title = "") {
+plotPredictFit <- function(prediction, replicate, targetProfile, targetSigma, observedProfile, numSamples = 20, title = "") {
   true_value = extract(prediction,pars="gene_profile_true")$gene_profile_true[,replicate,]
   
-  numTime = dim(targetProfile)[2];
+  numTime = length(targetProfile);
   
   samplesToPlot = true_value[sample(1:(dim(true_value)[1]),numSamples),];
   
@@ -37,10 +37,10 @@ plotPredictFit <- function(prediction, replicate, targetProfile, targetSigma, ob
   lineWidths = rep.int(1, numSamples);
   #lineWidths[1] = defaultWidth * 2;
   matplot(t(samplesToPlot), lwd = lineWidths,  type="l", main = title) 
-  points(1:numTime - 0.1, observedProfile[replicate,], pch=1, col = "lightblue");
-  arrows(1:numTime - 0.1, observedProfile[replicate,] - targetSigma[replicate,], 1:numTime - 0.1, observedProfile[replicate,] + targetSigma[replicate,],length=0.05, angle=90, code=3, col = "lightblue")
-  points(1:numTime, targetProfile[replicate,], pch=19);
-  arrows(1:numTime,targetProfile[replicate,] - targetSigma[replicate,], 1:numTime, targetProfile[replicate,] + targetSigma[replicate,],length=0.05, angle=90, code=3)
+  points(1:numTime - 0.1, observedProfile, pch=1, col = "lightblue");
+  arrows(1:numTime - 0.1, observedProfile - targetSigma, 1:numTime - 0.1, observedProfile + targetSigma, length=0.05, angle=90, code=3, col = "lightblue")
+  points(1:numTime, targetProfile, pch=19);
+  arrows(1:numTime, targetProfile - targetSigma, 1:numTime, targetProfile + targetSigma,length=0.05, angle=90, code=3)
 }
 
 testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoints, ...) {
@@ -54,7 +54,7 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   
   colnames(resultSummary)[1] <- "true";
   for(replicate in 1:simulatedData$numReplicates) {
-    resultSummary[paste0("initial_condition[", replicate,"]"), "true"] = simulatedData$params$initialConditions[i, replicate];                                  
+    resultSummary[paste0("initial_condition[", replicate,"]"), "true"] = simulatedData$params$initialConditions[replicate,i];                                  
   }
   resultSummary["basal_transcription", "true"] = simulatedData$params$basalTranscription[i];                                  
   resultSummary["degradation", "true"] = simulatedData$params$degradation[i];                                  
@@ -68,7 +68,7 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   
   for(replicate in 1:simulatedData$numReplicates)
   {
-    plotPredictFit(prediction, replicate, simulatedData$trueTargets[i,,],simulatedData$targetSigma[i,,], simulatedData$y[i + 1,,], numSamples = 20, title = paste0(title,"-",replicate))
+    plotPredictFit(prediction, replicate, simulatedData$trueTargets[replicate,i,],simulatedData$targetSigma[replicate,i,], simulatedData$y[replicate,i + 1,], numSamples = 20, title = paste0(title,"-",replicate))
   }
   
   return(prediction);
