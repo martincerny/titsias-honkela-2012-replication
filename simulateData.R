@@ -43,13 +43,13 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   step = 1/numIntegrationPoints;
   integrationTime = seq(from = 1, to = length(regulatorProfile) + 0.00001, by = step);
   
-  proteinDegradation = exp(rnorm(1, -0.5,0.3));
+  proteinDegradation = 0.4;#exp(rnorm(1, -0.5,0.3));
   proteinInitialLevel = exp(rnorm(1, -0.5,0.3));
   
   initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,1)), c(numReplicates, numTargets));
-  basalTranscription = exp(rnorm(numTargets, -0.5,1));
-  degradation = exp(rnorm(numTargets, -0.5,1));
-  sensitivity = exp(rnorm(numTargets, -0.5,1));
+  basalTranscription = exp(rnorm(numTargets, -0.8,0.2));
+  degradation = exp(rnorm(numTargets, 2,1));
+  sensitivity = exp(rnorm(numTargets, 2,1));
   
   bias = rnorm(numTargets, 0, 1);
   
@@ -73,6 +73,8 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     regulatorProtein[i,] = ode( y = c(x = proteinInitialLevel), times = integrationTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
   
   }
+  minProtein = min(regulatorProtein)
+  maxProtein = max(regulatorProtein)
   
   regulatorProtein[regulatorProtein < 0.05] = 0.05;
   
@@ -84,7 +86,17 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   targetSigma = array(0, c(numReplicates, numTargets, length(time)));
   for(i in 1:numTargets)
   {
-
+    #Rejection sampling to get full regulation potential
+    while (sign(minProtein * interactionWeights[i] + bias[i]) == sign(maxProtein * interactionWeights[i] + bias[i])) 
+    {
+      bias[i] = rnorm(1, 0,1);
+      interactionWeights[i] = rnorm(1, -0,2);
+      
+    }
+    while((sensitivity[i] + basalTranscription[i]) / degradation[i] < 0.2) {
+      degradation[i] = exp(rnorm(1, 2,1));
+      sensitivity[i] = exp(rnorm(1, 2,1));
+    }
     for(j in 1:numReplicates)
     {
       params = c(degradation = degradation[i], bias = bias[i], sensitivity = sensitivity[i], weight = interactionWeights[i], protein = approxfun(integrationTime, regulatorProtein[j,], rule=2));  
@@ -108,7 +120,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     yvar = bindReplicates(regulatorSigma, targetSigma),
     genes = spots,
     times = time,
-    numReplicates = numReplicates,
+    experiments = 1:numReplicates,
     trueProtein = regulatorProtein,
     trueTargets = targetValues,
     targetSigma = targetSigma,
