@@ -85,10 +85,29 @@ plotAllTargetFits <- function(prediction, simulatedData, simulatedDataIndices = 
     
 }
 
-testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, ...) {
+plotRegulatorFit <- function(prediction, data, replicate = 1, tfIndex = 1, numSamples = 20, title = replicate) 
+{
+  true_value = extract(prediction,pars="regulator_profiles_true")$regulator_profiles_true[,replicate,tfIndex,]
+  
+  numDetailedTime = dim(true_value)[2];
+  numTime = length(data$times);
+  
+  detailedTime = ((1:numDetailedTime) - 1) * (numTime / (numDetailedTime + 1)) + 1;
+  
+  samplesToPlot = true_value[sample(1:(dim(true_value)[1]),numSamples),];
+  
+  matplot(detailedTime, t(samplesToPlot), type="l", main = title) 
+  values = data$y[replicate,tfIndex,];
+  sigma = data$yvar[replicate,tfIndex,];
+  points(1:numTime - 0.1, values, pch=19);
+  arrows(1:numTime - 0.1, values - sigma, 1:numTime - 0.1,values + sigma ,length=0.05, angle=90, code=3)
+  #points(detailedTime, trueProtein, pch=19);
+}
+
+testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTargets = 10, ...) {
   if(is.null(simulatedData))
   {
-    simulatedData = simulateData(c(0.8,0.7,0.2,0.3,0.6,1.5,2.7,0.9,0.8,0.6,0.2,1.6), numIntegrationPoints, numTargets = 10)
+    simulatedData = simulateData(c(0.8,0.7,0.2,0.3,0.6,1.5,2.7,0.9,0.8,0.6,0.2,1.6), numIntegrationPoints, numTargets = numTargets)
   }
   
   trainResult = trainModel(simulatedData$regulatorSpots, simulatedData$targetSpots, simulatedData, numIntegrationPoints, ...);
