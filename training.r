@@ -8,7 +8,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
   interactionMatrix = array(1,c(length(regulatorIndices),length(genesIndices)));
   
   numTime = length(normalizedData$times)
-  numReplicates = normalizedData$numReplicates;
+  numReplicates = length(normalizedData$experiments)
   
   numRegulators = length(regulatorIndices);
   numGenes = length(genesIndices);
@@ -74,11 +74,12 @@ plotTrainingTargetFit <- function(prediction, replicate, targetIndex, trueTarget
   
 }
 
-plotAllTargetFits <- function(prediction, simulatedData)
+plotAllTargetFits <- function(prediction, simulatedData, simulatedDataIndices = 1:length(simulatedData$targetSpots))
 {
-  for(target in 1:length(simulatedData$targetSpots)){
-    for(replicate in 1:simulatedData$numReplicates){
-      plotTrainingTargetFit(prediction,replicate,target,simulatedData$trueTargets[replicate,target,],simulatedData$y[replicate,target + 1,],simulatedData$yvar[replicate,target + 1,], title = paste0("Target ", target,"-",replicate))
+  for(target in 1:length(simulatedDataIndices)){
+    for(replicate in 1:length(simulatedData$experiments)){
+      simulatedIndex = simulatedDataIndices[target]
+      plotTrainingTargetFit(prediction,replicate,target,simulatedData$trueTargets[replicate,simulatedIndex,],simulatedData$y[replicate,simulatedIndex + 1,],simulatedData$yvar[replicate,simulatedIndex + 1,], title = paste0("Target ", target,"-",replicate))
     }
   }
     
@@ -93,7 +94,7 @@ testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, ...) {
   trainResult = trainModel(simulatedData$regulatorSpots, simulatedData$targetSpots, simulatedData, numIntegrationPoints, ...);
   
   tryCatch({
-  for(replicate in 1:simulatedData$numReplicates){
+  for(replicate in 1:length(simulatedData$experiments)){
     plotTrainingFit(trainResult,replicate,1,simulatedData$trueProtein[replicate,],simulatedData$y[replicate,1,], simulatedData$yvar[replicate,1,], title = replicate);
   }}, error = function(e) {});
   

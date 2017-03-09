@@ -16,11 +16,25 @@ drosophila_mmgmos_exprs <- mmgmos(expdata)
 drosophila_gpsim_processed <- processData(drosophila_mmgmos_exprs, experiments=rep(1:3, each=12))
 drosophila_gpsim_normalized = normalizeGenes(drosophila_gpsim_processed)
 
+#Reformat the data to separate replicates
+yReplicates = array(-1, c(length(drosophila_gpsim_normalized$experiments), length(drosophila_gpsim_normalized$genes), length(drosophila_gpsim_normalized$times)));
+yvarReplicates = array(-1, c(length(drosophila_gpsim_normalized$experiments), length(drosophila_gpsim_normalized$genes), length(drosophila_gpsim_normalized$times)));
+for(replicate in 1:length(drosophila_gpsim_normalized$experiments)) {
+  startIndex = (replicate - 1) * length(drosophila_gpsim_normalized$times) + 1;
+  endIndex = replicate * length(drosophila_gpsim_normalized$times);
+  yReplicates[replicate,,] = drosophila_gpsim_normalized$y[,startIndex:endIndex];
+  yvarReplicates[replicate,,] = drosophila_gpsim_normalized$yvar[,startIndex:endIndex];
+}
+drosophila_gpsim_normalized$y = yReplicates
+drosophila_gpsim_normalized$yvar = yvarReplicates
+
 #Cleanup intermediary data
 rm(drosophila_mmgmos_exprs)
 rm(expdata)
 rm(expfiles)
 rm(drosophila_gpsim_processed)
+rm(yReplicates)
+rm(yvarReplicates)
 
 
 mapping = loadMapping();

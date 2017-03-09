@@ -5,7 +5,7 @@ predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoi
   geneIndex = rowIDsFromSpotNames(normalizedData, geneSpot);
   
   numTime = length(normalizedData$times)
-  numReplicates = normalizedData$numReplicates
+  numReplicates = length(normalizedData$experiments)
   
   numDetailedTime = getNumDetailedTime(numTime, numIntegrationPoints)
   
@@ -53,7 +53,7 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   resultSummary = cbind(array(0,c(dim(resultSummary)[1],1)), resultSummary)
   
   colnames(resultSummary)[1] <- "true";
-  for(replicate in 1:simulatedData$numReplicates) {
+  for(replicate in 1:length(simulatedData$experiments)) {
     resultSummary[paste0("initial_condition[", replicate,"]"), "true"] = simulatedData$params$initialConditions[replicate,i];                                  
   }
   resultSummary["basal_transcription", "true"] = simulatedData$params$basalTranscription[i];                                  
@@ -66,7 +66,7 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   cat(paste0("\n",title,"\n"));
   print(resultSummary);    
   
-  for(replicate in 1:simulatedData$numReplicates)
+  for(replicate in 1:length(simulatedData$experiments))
   {
     plotPredictFit(prediction, replicate, simulatedData$trueTargets[replicate,i,],simulatedData$targetSigma[replicate,i,], simulatedData$y[replicate,i + 1,], numSamples = 20, title = paste0(title,"-",replicate))
   }
