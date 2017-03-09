@@ -87,13 +87,14 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   for(i in 1:numTargets)
   {
     #Rejection sampling to get full regulation potential
-    while (sign(minProtein * interactionWeights[i] + bias[i]) == sign(maxProtein * interactionWeights[i] + bias[i])) 
+    while (sign(minProtein * interactionWeights[i] + bias[i]) == sign(maxProtein * interactionWeights[i] + bias[i])
+           || abs(minProtein * interactionWeights[i] - maxProtein * interactionWeights[i]) < 2) 
     {
       bias[i] = rnorm(1, 0,1);
       interactionWeights[i] = rnorm(1, -0,2);
       
     }
-    while((sensitivity[i] + basalTranscription[i]) / degradation[i] < 0.2) {
+    while((sensitivity[i]) / degradation[i] < 0.5) {
       degradation[i] = exp(rnorm(1, 2,1));
       sensitivity[i] = exp(rnorm(1, 2,1));
     }
