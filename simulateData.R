@@ -88,11 +88,11 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   {
     #Rejection sampling to get full regulation potential
     while (sign(minProtein * interactionWeights[i] + bias[i]) == sign(maxProtein * interactionWeights[i] + bias[i])
-           || abs(minProtein * interactionWeights[i] - maxProtein * interactionWeights[i]) < 2) 
+           || abs(minProtein * interactionWeights[i] - maxProtein * interactionWeights[i]) < 2)
     {
       bias[i] = rnorm(1, 0,1);
       interactionWeights[i] = rnorm(1, -0,2);
-      
+
     }
     while((sensitivity[i]) / degradation[i] < 0.5) {
       degradation[i] = exp(rnorm(1, 2,1));
@@ -121,6 +121,8 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     yvar = bindReplicates(regulatorSigma, targetSigma),
     genes = spots,
     times = time,
+    detailedTime = integrationTime,
+    numIntegrationPoints = numIntegrationPoints,
     experiments = 1:numReplicates,
     trueProtein = regulatorProtein,
     trueTargets = targetValues,
@@ -137,4 +139,91 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     , regulatorSpots = spots[1]
     , targetSpots = spots[2:(numTargets + 1)]
   )
+}
+
+numericalIntegration <- function(basalTranscription, degradation, initialCondition, sensitivity, weight, bias, protein, numTime, numIntegrationPoints){
+  
+  numericalResult = numeric(numTime);
+  numericalResult[1] = initialCondition
+  integrationTimeStep = 1 / numIntegrationPoints
+  
+  basalOverDegradation = basalTranscription / degradation;
+  
+  regulationInput = bias + weight * log(protein);
+  synthesis = integrationTimeStep * ( 1 / (1 + exp(-regulationInput)))
+  
+  residual = -0.5 * synthesis[1];
+  degradationPerStep = exp(-degradation * integrationTimeStep)
+  
+  # for(detailedTimeIndex in 2:length(data$detailedTime)){
+  #   residual = (residual + synthesis[detailedTimeIndex - 1])  * degradationPerStep;
+  #   if((detailedTimeIndex - 1) %% numIntegrationPoints == 0)
+  #   {
+  #     integral = residual + 0.5 * synthesis[detailedTimeIndex];
+  #     time = ((detailedTimeIndex - 1) %/% numIntegrationPoints) + 1
+  #     numericalResult[time] = basalOverDegradation + (initialCondition - basalOverDegradation) * exp(-degradation * (time - 1)) + sensitivity * integral
+  #   }
+  # }
+  
+  
+  for(time in 2:numTime){
+    integral = 0;
+    previousDetailed = (time - 1) * numIntegrationPoints + 1;
+    for(previousIndex in 1:previousDetailed)
+    {
+      if(previousIndex == 1 || previousIndex == previousDetailed)
+      {
+        h = 0.5;
+      }
+      else
+      {
+        h = 1;
+      }
+      degradationCoeff = exp(-degradation * (previousDetailed - previousIndex) * integrationTimeStep)
+      integral = integral + h * synthesis[previousIndex] * degradationCoeff;
+    }
+    numericalResult[time] = basalOverDegradation + (initialCondition - basalOverDegradation) * exp(-degradation * (time - 1)) + sensitivity * integral
+  }
+  return(numericalResult)
+}
+
+testNumericalIntegrationSingle <- function(data, targetIndex = 1, replicate = 1, doPlot = TRUE) {
+
+  #The actual numerical integration
+  basalTranscription = data$params$basalTranscription[targetIndex];
+  degradation = data$params$degradation[targetIndex];
+  initialCondition = data$params$initialConditions[replicate, targetIndex];
+  sensitivity = data$params$sensitivity[targetIndex];
+  weight = data$params$weights[targetIndex];
+  bias = data$params$bias[targetIndex];
+  
+  numIntegrationPoints = data$numIntegrationPoints
+  
+  numericalResult = numericalIntegration(basalTranscription, degradation, initialCondition, sensitivity, weight, bias, data$trueProtein[replicate,], length(data$times), numIntegrationPoints)
+  
+  numericalData = data.frame(time = data$times, value = numericalResult);
+  numericalData$type = "numeric";
+  
+  odeData = data.frame(time = data$times, value = data$trueTargets[replicate, targetIndex,]);
+  odeData$type = "ode";
+  
+  allData = rbind(numericalData, odeData);
+  
+  if(doPlot){
+    print(ggplot(allData, aes(x = time, y = value, color = type)) + geom_line())
+  }
+  errors = numericalResult - data$trueTargets[replicate, targetIndex,];
+  return(sqrt(mean(errors ^ 2)))
+}
+
+testNumericalIntegration <- function(numTargets = 5, numIntegrationPoints = 10, doPlot = TRUE) {
+  simulatedData = simulateData(c(0.8,0.7,0.2,0.3,0.6,1.5,2.7,0.9,0.8,0.6,0.2,1.6), numIntegrationPoints, numTargets = numTargets)
+  totalError = 0
+  for(target in 1:numTargets){
+    for(replicate in 1:length(simulatedData$experiments))
+    {
+      totalError = totalError + testNumericalIntegrationSingle(simulatedData, target, replicate, doPlot) ^ 2; 
+    }
+  }
+  return (sqrt(totalError / (numTargets * length(simulatedData$experiments))))
 }

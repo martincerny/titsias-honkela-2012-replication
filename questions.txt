@@ -6,6 +6,5 @@ How are multiple probes for the same gene handled?
 What were the training genes?
    The supplementary material lists the 25 training genes and a subset of the genes that were excluded from training due to high inferred adaptive variances. Is a full list of the 92 genes considered for training available? Further, is the list of their potential target/non-targets available?
    
-How much dense was your grid for numerical integration? (i.e. how big was N_p)
+How exactly did you implement the numerical integration via trapezoid rule? I am facing some tradeoffs in efficiency vs. numerical stability.
    
-Jsem schopen se dostat ke spuštění tréninku - stačí ignorovat BAP. (pro BAP zdá se spustili jen první probe)
