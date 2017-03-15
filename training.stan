@@ -51,7 +51,7 @@ parameters {
 
   //vector<lower = 0>[num_genes] model_mismatch_sigma;
 
-  vector<lower = 0>[num_genes] initial_conditions[num_replicates];
+  vector<lower = 0>[num_genes] initial_condition[num_replicates];
   vector<lower = 0>[num_genes] basal_transcription;
   vector<lower = 0>[num_genes] degradation;
   vector<lower = 0>[num_genes] transcription_sensitivity;
@@ -69,6 +69,8 @@ parameters {
 transformed parameters {
   vector[num_detailed_time] regulator_profiles_true[num_replicates, num_regulators];
   vector[num_regulators] protein_profiles[num_replicates, num_detailed_time];
+  vector[num_time] gene_profiles_true[num_replicates, num_genes];
+
 
   //GP prior on regulators
   for (regulator in 1: num_regulators) {
@@ -101,11 +103,7 @@ transformed parameters {
         }
     }
   }  
-}
-
-model {
   
-  vector[num_time] gene_profiles_true[num_replicates, num_genes];
   
 
   //----------First compute transformed data------------
@@ -120,14 +118,14 @@ model {
     
     for(replicate in 1:num_replicates) {
       real previously_synthetized_residual = 0;
-      real initial = initial_conditions[replicate, gene] - basal_over_degradation;
+      real initial = initial_condition[replicate, gene] - basal_over_degradation;
       
-      gene_profiles_true[replicate, gene, 1] = initial_conditions[replicate, gene];
+      gene_profiles_true[replicate, gene, 1] = initial_condition[replicate, gene];
       for (detailed_time_index in 2:num_detailed_time) {
         //TODO: replaced midpoint with trapezoid rule
           
         //TODO maybe put log(tf_profiles) in transformed data
-        real regulation_input = interaction_bias[gene] + dot_product(interaction_weights[gene], log(protein_profiles[replicate,detailed_time_index]));
+        real regulation_input = interaction_bias[gene] + dot_product(interaction_weights[gene], log(protein_profiles[replicate,detailed_time_index - 1]));
   
         real sigmoid_value = integration_step / (1.0 + exp(-regulation_input));
 
@@ -141,6 +139,11 @@ model {
       }
     }
   }  
+  
+    
+}
+
+model {
   
   
   //-----------Now the actual model-------------------------------------
@@ -177,7 +180,7 @@ model {
   
   //Other priors
   for (replicate in 1:num_replicates) {
-    transcription_params_prior_lp(initial_conditions[replicate]);
+    transcription_params_prior_lp(initial_condition[replicate]);
     transcription_params_prior_lp(protein_initial_level[replicate]);
   }
   

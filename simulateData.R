@@ -14,7 +14,7 @@ targetODE <- function(t, state, parameters)
 {
   with(as.list(c(state, parameters)), {
     regulatoryInput = bias + weight * log(protein(t));
-    dX = sensitivity/(1 + exp(-regulatoryInput)) - degradation * x;
+    dX = basalTranscription + (sensitivity/(1 + exp(-regulatoryInput))) - degradation * x;
     
     list(dX)
   })
@@ -100,7 +100,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     }
     for(j in 1:numReplicates)
     {
-      params = c(degradation = degradation[i], bias = bias[i], sensitivity = sensitivity[i], weight = interactionWeights[i], protein = approxfun(integrationTime, regulatorProtein[j,], rule=2));  
+      params = c(degradation = degradation[i], bias = bias[i], sensitivity = sensitivity[i], weight = interactionWeights[i], basalTranscription = basalTranscription[i], protein = approxfun(integrationTime, regulatorProtein[j,], rule=2));  
       
       targetValues[j,i,] = ode( y = c(x = initialConditions[j,i]), times = time, func = targetODE, parms = params, method = "ode45")[,"x"];
       

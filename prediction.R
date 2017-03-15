@@ -23,24 +23,46 @@ predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoi
 }
 
 
-plotPredictFit <- function(prediction, replicate, targetProfile, targetSigma, observedProfile, numSamples = 20, title = "") {
-  true_value = extract(prediction,pars="gene_profile_true")$gene_profile_true[,replicate,]
+plotPredictFit <- function(prediction, data, targetIndex, replicate, numSamples = 20, title = "", useODE = FALSE) {
+  samples = extract(prediction,pars=c("gene_profile_true","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
+  sampleIndices = sample(1:(dim(samples$initial_condition)[1]),numSamples);
   
-  numTime = length(targetProfile);
   
-  samplesToPlot = true_value[sample(1:(dim(true_value)[1]),numSamples),];
+  numTime = length(data$times);
+  
+  
+  if(useODE){
+    #solve the ODE to get the actual profiles of interest
+    samplesToPlot = array(-1, c(numSamples,numTime));   
+    
+    trueProtein = data$trueProtein[replicate,];
+    numDetailedTime = length(trueProtein);
+    detailedTime = ((1:numDetailedTime) - 1) * (numTime / (numDetailedTime + 1)) + 1;
+    
+    proteinFun = approxfun(detailedTime, trueProtein, rule=2)
+    
+    for(sample in 1:numSamples) {
+      sampleId = sampleIndices[sample];
+      params = c(degradation = samples$degradation[sampleId], bias = samples$interaction_bias[sampleId], sensitivity = samples$transcription_sensitivity[sampleId], basalTranscription = samples$basal_transcription[sampleId], weight = samples$interaction_weights[sampleId,1],  protein = proteinFun);  
+      
+      samplesToPlot[sample,] = ode( y = c(x = samples$initial_condition[sampleId,replicate]), times = 1:numTime, func = targetODE, parms = params, method = "ode45")[,"x"];
+    }
+  }
+  else {
+    samplesToPlot = samples$gene_profile_true[sampleIndices,replicate, ];
+  }
   
   #Add the raw profile
+  observedProfile = data$y[replicate,targetIndex + 1,]  
+  sigma = data$yvar[replicate,targetIndex + 1,]  
+  targetProfile = data$trueTargets[replicate,targetIndex,]  
   
-  #plotData = t(rbind(targetProfile, samplesToPlot));
-  #defaultWidth = 1;
   lineWidths = rep.int(1, numSamples);
-  #lineWidths[1] = defaultWidth * 2;
   matplot(t(samplesToPlot), lwd = lineWidths,  type="l", main = title) 
   points(1:numTime - 0.1, observedProfile, pch=1, col = "lightblue");
-  arrows(1:numTime - 0.1, observedProfile - targetSigma, 1:numTime - 0.1, observedProfile + targetSigma, length=0.05, angle=90, code=3, col = "lightblue")
+  arrows(1:numTime - 0.1, observedProfile - sigma, 1:numTime - 0.1, observedProfile + sigma, length=0.05, angle=90, code=3, col = "lightblue")
   points(1:numTime, targetProfile, pch=19);
-  arrows(1:numTime, targetProfile - targetSigma, 1:numTime, targetProfile + targetSigma,length=0.05, angle=90, code=3)
+  arrows(1:numTime, targetProfile - sigma, 1:numTime, targetProfile + sigma,length=0.05, angle=90, code=3)
 }
 
 testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoints, ...) {
@@ -68,7 +90,8 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   
   for(replicate in 1:length(simulatedData$experiments))
   {
-    plotPredictFit(prediction, replicate, simulatedData$trueTargets[replicate,i,],simulatedData$targetSigma[replicate,i,], simulatedData$y[replicate,i + 1,], numSamples = 20, title = paste0(title,"-",replicate))
+    plotPredictFit(prediction, simulatedData, i, replicate, numSamples = 20, title = paste0(title,"-",replicate, " Modelled"))
+    plotPredictFit(prediction, simulatedData, i, replicate, numSamples = 20, title = paste0(title,"-",replicate, " ODE"), useODE = TRUE)
   }
   
   return(prediction);
