@@ -61,46 +61,21 @@ transformed parameters {
   { //new scope to make the variables local
     //real degradation_per_unit_time = exp(-degradation);
     real basal_over_degradation = basal_transcription / degradation;
-    //real degradation_per_step = exp(-degradation * integration_step);
+    real degradation_per_step = exp(-degradation * integration_step);
 
 //!Init -> time 1!
     for (replicate in 1:num_replicates)
     {
-      //real residual;
+      real residual;
       vector[num_detailed_time] regulation_input;
       vector[num_detailed_time] synthesis;
 
       regulation_input = rep_vector(interaction_bias, num_detailed_time) + log_tf_profiles[replicate] * interaction_weights;
 
-      for (i in 1:num_detailed_time)
-      {
-        synthesis[i] = integration_step / (1 + exp(-regulation_input[i]));
-      }
-      //synthesis = integration_step * inv(1 + exp(-regulation_input));
+      synthesis = integration_step * inv(1 + exp(-regulation_input));
       
       gene_profile_true[replicate, 1] = initial_condition[replicate];
 
-      for (time in 2:num_time)
-      {
-        real integral = 0;
-        int detailed_time = (time - 1) * num_integration_points + 1;
-        for(previous_detailed in 1:detailed_time){
-          real degradation_coeff = exp(-degradation * (detailed_time - previous_detailed) * integration_step);
-          real trapezoid_synthesis;
-          if(previous_detailed == 1 || previous_detailed == detailed_time){
-            trapezoid_synthesis = 0.5 * synthesis[previous_detailed];
-          }
-          else
-          {
-            trapezoid_synthesis = synthesis[previous_detailed];
-          }
-          integral = integral + trapezoid_synthesis * degradation_coeff;
-          
-        }
-        gene_profile_true[replicate, time] = basal_over_degradation + (initial_condition[replicate] - basal_over_degradation) * exp(-degradation * (time - 1)) + transcription_sensitivity * integral;
-        
-      }
-      /*
       //Calculating the integral by trapezoid rule in a single pass for all values
       residual = -0.5 * synthesis[1];
       for (detailed_time in 2:num_detailed_time)
@@ -112,7 +87,7 @@ transformed parameters {
           int time = ((detailed_time -1) / num_integration_points) + 1;
           gene_profile_true[replicate, time] = basal_over_degradation + (initial_condition[replicate] - basal_over_degradation) * exp(-degradation * (time - 1)) + transcription_sensitivity * integral_value;
         }
-      }*/
+      }
     }
   }
 }
