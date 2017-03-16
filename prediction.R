@@ -1,6 +1,6 @@
 require(rstan)
 
-predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoints, ...)
+predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoints, modelFile ="prediction.stan", ...)
 {
   geneIndex = rowIDsFromSpotNames(normalizedData, geneSpot);
   
@@ -19,7 +19,7 @@ predictModel <- function(tfProfiles, geneSpot, normalizedData, numIntegrationPoi
                    gene_profile_observed = array(normalizedData$y[,geneIndex, 1:numTime], c(numReplicates, numTime)), 
                    gene_profile_sigma = array(sqrt(normalizedData$yvar[,geneIndex, 1:numTime]), c(numReplicates, numTime))
   );
-  return(stan('prediction.stan', data = modelData, ...));
+  return(stan(modelFile, data = modelData, ...));
 }
 
 
@@ -82,7 +82,7 @@ plotPredictFit <- function(prediction, data, targetIndex, replicate, numSamples 
   }
 }
 
-testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoints, ...) {
+testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoints, silent = FALSE, ...) {
   i = targetIndex;
   
   paramsOfInterest = c("initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias", "interaction_weights"); #, "model_mismatch_sigma"
@@ -101,13 +101,15 @@ testSinglePrediction <- function(simulatedData, targetIndex, numIntegrationPoint
   resultSummary["interaction_bias", "true"] = simulatedData$params$bias[i];                                  
   resultSummary["interaction_weights[1]", "true"] = simulatedData$params$weights[i];                                  
   
-  title = paste0("Result ",i);
-  cat(paste0("\n",title,"\n"));
-  print(resultSummary);    
-  
-  for(replicate in 1:length(simulatedData$experiments))
-  {
-    plotPredictFit(prediction, simulatedData, i, replicate, numSamples = 20, title = paste0(title,"-",replicate), useODE = TRUE)
+  if(!silent){
+    title = paste0("Result ",i);
+    cat(paste0("\n",title,"\n"));
+    print(resultSummary);    
+    
+    for(replicate in 1:length(simulatedData$experiments))
+    {
+      plotPredictFit(prediction, simulatedData, i, replicate, numSamples = 20, title = paste0(title,"-",replicate), useODE = TRUE)
+    }
   }
   
   return(prediction);
@@ -143,9 +145,26 @@ testPrediction <- function(numTargets = 5, numIntegrationPoints = 10, ...) {
 
 averageSamplingTime <- function(fits)
 {
-  timeList = lapply(testResults$fits, get_elapsed_time)
+  timeList = lapply(fits, get_elapsed_time)
   allTimes = Reduce(rbind,timeList, array(0,c(0,2)))
   warmupTimes = allTimes[,"warmup"]
   sampleTimes = allTimes[,"sample"]
   return(list(total = mean(warmupTimes + sampleTimes), sample = mean(sampleTimes)))
+}
+
+benchmarkPrediction <- function(numTargets = 5, numIntegrationPoints = 10, ...) {
+  models = c('prediction.stan','prediction-single-pass.stan');
+  
+  simulatedData = simulateData(c(0.8,0.7,0.2,0.3,0.6,1.5,2.7,0.9,0.8,0.6,0.2,1.6), numIntegrationPoints, numTargets = numTargets)
+  
+  for(m in models) {
+    fits = vector("list", numTargets);
+    
+    for(i in 1:numTargets){
+      
+      fits[[i]] = testSinglePrediction(simulatedData, i, numIntegrationPoints, modelFile=m, silent=TRUE, ...);
+    }
+    cat(m,"\n")
+    print(averageSamplingTime(fits));
+  }
 }
