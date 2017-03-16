@@ -68,7 +68,7 @@ parameters {
 
 transformed parameters {
   vector[num_detailed_time] regulator_profiles_true[num_replicates, num_regulators];
-  vector[num_regulators] protein_profiles[num_replicates, num_detailed_time];
+  matrix[num_detailed_time, num_regulators] log_tf_profiles[num_replicates];
   vector[num_time] gene_profiles_true[num_replicates, num_genes];
 
 
@@ -97,7 +97,7 @@ transformed parameters {
       real degradation_per_integration_step = exp(-protein_degradation[regulator] * integration_step);
 
       for (time in 1:num_detailed_time) {
-        protein_profiles[replicate, time, regulator] = synthesis_accumulator;
+        log_tf_profiles[replicate, time, regulator] = log(synthesis_accumulator);
         
         synthesis_accumulator = synthesis_accumulator * degradation_per_integration_step + regulator_profiles_true[replicate, regulator, time] * integration_step;      
         }
@@ -113,29 +113,38 @@ transformed parameters {
   
   //gene RNA synthesis
   for (gene in 1:num_genes) {
-    real degradation_per_integration_step = exp(-degradation[gene] * integration_step);
     real basal_over_degradation = basal_transcription[gene] / degradation[gene];
-    
-    for(replicate in 1:num_replicates) {
-      real previously_synthetized_residual = 0;
-      real initial = initial_condition[replicate, gene] - basal_over_degradation;
+    real degradation_per_step = exp(-degradation[gene] * integration_step);
+
+    for (replicate in 1:num_replicates)
+    {
+      real residual;
+      vector[num_detailed_time] regulation_input;
+      vector[num_detailed_time] synthesis;
+
+      regulation_input = rep_vector(interaction_bias[gene], num_detailed_time) + log_tf_profiles[replicate] * interaction_weights[gene];
+
+      synthesis = integration_step * inv(1 + exp(-regulation_input));
       
       gene_profiles_true[replicate, gene, 1] = initial_condition[replicate, gene];
-      for (detailed_time_index in 2:num_detailed_time) {
-        //TODO: replaced midpoint with trapezoid rule
-          
-        //TODO maybe put log(tf_profiles) in transformed data
-        real regulation_input = interaction_bias[gene] + dot_product(interaction_weights[gene], log(protein_profiles[replicate,detailed_time_index - 1]));
-  
-        real sigmoid_value = integration_step / (1.0 + exp(-regulation_input));
 
-        previously_synthetized_residual = previously_synthetized_residual * degradation_per_integration_step + sigmoid_value;
-        if ((detailed_time_index - 1) % num_integration_points == 0)
-        {
-          int time = ((detailed_time_index - 1) / num_integration_points) + 1;
-          real initial_residual = initial * exp(-degradation[gene] * (time - 1));
-          gene_profiles_true[replicate, gene, time] = basal_over_degradation + initial_residual + transcription_sensitivity[gene] * previously_synthetized_residual;
+      //Calculating the integral by trapezoid rule in a single pass for all values
+      residual = -0.5 * synthesis[1];
+      for (time in 2:num_time) 
+      {
+        int detailed_time_base = (time - 2) * num_integration_points + 1; //detailed_time needs to start at 2 (so this starts at 1)
+        for (detailed_time_relative in 1:num_integration_points)
+        { 
+          int detailed_time_index = detailed_time_base + detailed_time_relative;
+          residual = (residual + synthesis[detailed_time_index - 1]) * degradation_per_step;
         }
+        
+        { //new block to let me define new vars
+          int detailed_time_index = detailed_time_base + num_integration_points;
+          real integral_value = residual + 0.5 * synthesis[detailed_time_index];
+          gene_profiles_true[replicate, gene, time] = basal_over_degradation + (initial_condition[replicate, gene] - basal_over_degradation) * exp(-degradation[gene] * (time - 1)) + transcription_sensitivity[gene] * integral_value;
+        }
+        
       }
     }
   }  

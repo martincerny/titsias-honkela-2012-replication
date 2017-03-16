@@ -28,7 +28,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
 }
 
 plotTrainingFit <- function(prediction, replicate, tfIndex, trueProtein, trueRNA, rnaSigma, numSamples = 20, title = "") {
-  true_value = extract(prediction,pars="protein_profiles")$protein_profiles[,replicate,,tfIndex]
+  true_value = exp(extract(prediction,pars="log_tf_profiles")$log_tf_profiles[,replicate,,tfIndex])
   
   numDetailedTime = length(trueProtein);
   numTime = length(trueRNA);
@@ -51,12 +51,16 @@ plotTrainingFit <- function(prediction, replicate, tfIndex, trueProtein, trueRNA
   points(detailedTime, trueProtein, pch=19);
 }
 
-plotTrainingTargetFit <- function(prediction, replicate, targetIndex, trueTarget, observedTarget, targetSigma, numSamples = 20, title = "", useODE = TRUE)
+plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numSamples = 20, title = "", useODE = TRUE)
 {
-  samples = extract(prediction,pars=c("gene_profiles_true","protein_profiles","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
-  sampleIndices = sample(1:(dim(samples$protein_profiles)[1]),numSamples);
+  observedTarget = data$y[replicate,targetIndex + 1,]  
+  targetSigma = data$yvar[replicate,targetIndex + 1,]  
+  trueTarget = data$trueTargets[replicate,targetIndex,]  
   
-  protein_profiles = samples$protein_profiles[,replicate,,]
+  samples = extract(prediction,pars=c("gene_profiles_true","log_tf_profiles","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
+  sampleIndices = sample(1:(dim(samples$log_tf_profiles)[1]),numSamples);
+  
+  protein_profiles = exp(samples$log_tf_profiles[sampleIndices,replicate,,])
   
   numDetailedTime = dim(protein_profiles)[2];
   numTime = length(trueTarget);
@@ -65,36 +69,43 @@ plotTrainingTargetFit <- function(prediction, replicate, targetIndex, trueTarget
   
   if(useODE) {
     #solve the ODE to get the actual profiles of interest
-    integrated_profile = array(-1, c(numSamples,numDetailedTime));   
+    integrated_profile = array(-1, c(numSamples,numTime));   
     
     for(sample in 1:numSamples) {
       sampleId = sampleIndices[sample];
-      params = c(degradation = samples$degradation[sampleId,targetIndex], bias = samples$interaction_bias[sampleId,targetIndex], sensitivity = samples$transcription_sensitivity[sampleId,targetIndex], basalTranscription = samples$basal_transcription[sampleId,targetIndex], weight = samples$interaction_weights[sampleId,targetIndex,1],  protein = approxfun(detailedTime, protein_profiles[sample,], rule=2));  
-      
-      integrated_profile[sample,] = ode( y = c(x = samples$initial_condition[sampleId,replicate, targetIndex]), times = detailedTime, func = targetODE, parms = params, method = "ode45")[,"x"];
+      params = c(degradation = samples$degradation[sampleId,targetIndex], bias = samples$interaction_bias[sampleId,targetIndex], sensitivity = samples$transcription_sensitivity[sampleId,targetIndex], basalTranscription = samples$basal_transcription[sampleId,targetIndex], weight = samples$interaction_weights[sampleId,targetIndex,1],  protein = approxfun(detailedTime, protein_profiles[sample,], rule=2));
+
+      integrated_profile[sample,] = ode( y = c(x = samples$initial_condition[sampleId,replicate, targetIndex]), times = 1:numTime, func = targetODE, parms = params, method = "ode45")[,"x"];
     }
-    matplot(detailedTime, t(integrated_profile), type="l", main = paste0(title, " - R ODE")) 
+    plotPredictFitGraphics(integrated_profile, observedTarget, trueTarget, targetSigma, numTime, paste0(title, " - R ODE"))
+    
+    # for(sample in 1:numSamples) {
+    #    sampleId = sampleIndices[sample];
+    #    integrated_profile[sample,] = numericalIntegration(
+    #      initialCondition = samples$initial_condition[sampleId,replicate, targetIndex],
+    #      degradation = samples$degradation[sampleId, targetIndex],
+    #      bias = samples$interaction_bias[sampleId, targetIndex],
+    #      sensitivity = samples$transcription_sensitivity[sampleId, targetIndex],
+    #      basalTranscription = samples$basal_transcription[sampleId, targetIndex],
+    #      weight = samples$interaction_weights[sampleId, targetIndex, 1],
+    #      protein = protein_profiles[sample,],
+    #      numTime = numTime,
+    #      numIntegrationPoints = data$numIntegrationPoints)
+    #  }
+    #  plotPredictFitGraphics(integrated_profile, observedTarget, trueTarget, targetSigma, numTime, paste0(title, " - R Numeric"))
   }
-  else {
-    integrated_profile = samples$gene_profiles_true[sampleIndices,replicate,targetIndex,];
-    matplot(1:numTime, t(integrated_profile), type="l", main = paste0(title, " - Modelled")) 
-  }
   
-  
-  points(1:numTime - 0.1, observedTarget, pch=1, col = "lightblue");
-  arrows(1:numTime - 0.1, observedTarget - targetSigma, 1:numTime - 0.1,observedTarget + targetSigma ,length=0.05, angle=90, code=3, col = "lightblue")
-  points(1:numTime, trueTarget, pch=19);
-  arrows(1:numTime, trueTarget - targetSigma, 1:numTime,trueTarget + targetSigma ,length=0.05, angle=90, code=3)
-  
+  samplesToPlot = samples$gene_profiles_true[sampleIndices,replicate,targetIndex,];
+  plotPredictFitGraphics(samplesToPlot, observedTarget, trueTarget, targetSigma, numTime, title)
+
 }
 
-plotAllTargetFits <- function(prediction, simulatedData, simulatedDataIndices = 1:length(simulatedData$targetSpots))
+plotAllTargetFits <- function(prediction, simulatedData, simulatedDataIndices = 1:length(simulatedData$targetSpots), useODE = FALSE)
 {
   for(target in 1:length(simulatedDataIndices)){
     for(replicate in 1:length(simulatedData$experiments)){
       simulatedIndex = simulatedDataIndices[target]
-      plotTrainingTargetFit(prediction,replicate,target,simulatedData$trueTargets[replicate,simulatedIndex,],simulatedData$y[replicate,simulatedIndex + 1,],simulatedData$yvar[replicate,simulatedIndex + 1,], title = paste0("Target ", target,"-",replicate), useODE = TRUE)
-      plotTrainingTargetFit(prediction,replicate,target,simulatedData$trueTargets[replicate,simulatedIndex,],simulatedData$y[replicate,simulatedIndex + 1,],simulatedData$yvar[replicate,simulatedIndex + 1,], title = paste0("Target ", target,"-",replicate), useODE = FALSE)
+      plotTrainingTargetFit(prediction,simulatedData, simulatedIndex, replicate, title = paste0("Target ", simulatedIndex,"-",replicate), useODE = useODE)
     }
   }
   
@@ -132,7 +143,9 @@ testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTarg
       plotTrainingFit(trainResult,replicate,1,simulatedData$trueProtein[replicate,],simulatedData$y[replicate,1,], simulatedData$yvar[replicate,1,], title = replicate);
     }
     plotAllTargetFits(trainResult, simulatedData);
-  }, error = function(e) {});
+  }, error = function(e) {
+    print(e);
+  });
   
   
   return(list(fit = trainResult, data = simulatedData));
