@@ -67,9 +67,12 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
 
   
   regulatorProtein = array(0, c(numReplicates, length(integrationTime)));
+  trueRegulatorDetailed = array(0, c(numReplicates, length(integrationTime)));
   for(i in 1:numReplicates) 
   {
-    proteinODEParams = c(degradation = proteinDegradation, regulator = approxfun(time, regulatorReplicates[i,], rule=2));  
+    regulatorApprox = approxfun(time, regulatorReplicates[i,], rule=2);
+    trueRegulatorDetailed[i, ] = regulatorApprox(integrationTime);
+    proteinODEParams = c(degradation = proteinDegradation, regulator = regulatorApprox);  
     regulatorProtein[i,] = ode( y = c(x = proteinInitialLevel), times = integrationTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
   
   }
@@ -124,7 +127,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     detailedTime = integrationTime,
     numIntegrationPoints = numIntegrationPoints,
     experiments = 1:numReplicates,
-    trueRegulator = regulatorReplicates,
+    trueRegulator = trueRegulatorDetailed,
     trueProtein = regulatorProtein,
     trueTargets = targetValues,
     targetSigma = targetSigma,

@@ -19,8 +19,7 @@ data {
   int num_integration_points;
   
   int num_regulators; 
-  vector<lower = 0>[num_time] regulator_profiles_observed[num_replicates, num_regulators];
-  vector<lower = 0>[num_time] regulator_profiles_sigma[num_replicates, num_regulators];
+  vector<lower=0>[count_num_detailed_time(num_time, num_integration_points)] regulator_profiles_true[num_replicates, num_regulators];
   
   int num_genes;
   vector<lower = 0>[num_time] gene_profiles_observed[num_replicates, num_genes];
@@ -47,8 +46,6 @@ transformed data {
 }
 
 parameters {
-  vector[num_detailed_time] regulator_profiles_true_gp[num_replicates, num_regulators];
-
   //vector<lower = 0>[num_genes] model_mismatch_sigma;
 
   vector<lower = 0>[num_genes] initial_condition[num_replicates];
@@ -62,33 +59,13 @@ parameters {
   vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
   vector<lower = 0>[num_regulators] protein_degradation;
   
-  vector<lower=0>[num_regulators] gp_variance;
-  vector<lower=0>[num_regulators] gp_length;
 }
 
 transformed parameters {
-  vector[num_detailed_time] regulator_profiles_true[num_replicates, num_regulators];
   matrix[num_detailed_time, num_regulators] log_tf_profiles[num_replicates];
   vector[num_time] gene_profiles_true[num_replicates, num_genes];
 
 
-  //GP prior on regulators
-  for (regulator in 1: num_regulators) {
-    matrix[num_detailed_time, num_detailed_time] covariance = cov_exp_quad(detailed_time, gp_variance[regulator] + 0.00001, gp_length[regulator]);
-    matrix[num_detailed_time, num_detailed_time] covariance_cholesky;
-    
-    for (I in 1:num_detailed_time)
-    {
-      covariance[I, I] = covariance[I, I] + 1e-12;
-    }
-    
-    covariance_cholesky = cholesky_decompose(covariance);
-    
-    for (replicate in 1: num_replicates) {
-      regulator_profiles_true[replicate, regulator] = log1p_exp(covariance_cholesky * regulator_profiles_true_gp[replicate, regulator]);
-    } 
-  }
-  
   //TF protein synthesis
   for(replicate in 1:num_replicates) {
     for(regulator in 1:num_regulators){
@@ -158,36 +135,13 @@ model {
   
   //-----------Now the actual model-------------------------------------
   
-  //Observation model
-  for (replicate in 1:num_replicates) {
-    for (regulator in 1:num_regulators) {
-      for (time in 1:num_time) {
-        int true_time_index = (time - 1) * num_integration_points + 1;
-        regulator_profiles_observed[replicate, regulator,time] 
-          ~ normal(regulator_profiles_true[replicate, regulator, true_time_index], regulator_profiles_sigma[replicate, regulator, time]);
-      }
-    }
-  }
-  
   for (replicate in 1:num_replicates) {
     for (gene in 1:num_genes) {
       gene_profiles_observed[replicate, gene] ~ normal(gene_profiles_true[replicate, gene], gene_profiles_sigma[replicate, gene]);// + model_mismatch_sigma[gene]);
     }
   }
   
-  //GP prior on regulators
-  for (replicate in 1:num_replicates) {
-    for (regulator in 1: num_regulators) {
-      regulator_profiles_true_gp[replicate, regulator] ~ normal(0, 1);
-    }
-  }
-  
-  //in the paper, the prior is uniform, between the smallest difference a and squared length
-  gp_length ~ cauchy(5, 5);
 
-  gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
-  
-  
   //Other priors
   for (replicate in 1:num_replicates) {
     transcription_params_prior_lp(initial_condition[replicate]);

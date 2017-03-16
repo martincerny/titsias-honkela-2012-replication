@@ -17,8 +17,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
                    num_integration_points = num_integration_points, 
                    num_regulators = numRegulators, 
                    num_replicates = numReplicates,
-                   regulator_profiles_observed = array(normalizedData$trueProtein, c(numReplicates, numRegulators,numTime)), 
-                   regulator_profiles_sigma = array(sqrt(normalizedData$yvar[,regulatorIndices,]),c(numReplicates,numRegulators,numTime)), 
+                   regulator_profiles_true = array(normalizedData$trueRegulator,c(numReplicates, numRegulators,(numTime - 1) * num_integration_points + 1)),
                    num_genes = numGenes, 
                    gene_profiles_observed = array(normalizedData$y[, genesIndices ,], c(numReplicates, numGenes,  numTime)), 
                    gene_profiles_sigma = array(sqrt(normalizedData$yvar[,genesIndices, ]), c(numReplicates, numGenes,  numTime)), 
@@ -40,7 +39,7 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
   trueRNA = data$y[replicate,1,];
   rnaSigma = data$yvar[replicate,1,];
 
-  samples = extract(prediction,pars=c("log_tf_profiles","regulator_profiles_true", "protein_initial_level","protein_degradation"));
+  samples = extract(prediction,pars=c("log_tf_profiles","protein_initial_level","protein_degradation"));
   true_value = samples$log_tf_profiles[,replicate,,tfIndex]
   
   numDetailedTime = length(trueProtein);
@@ -66,7 +65,7 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
     odeResults = array(0, c(numSamples, numDetailedTime));
     for(sample in 1:length(sampleIndices)){
       sampleIndex = sampleIndices[sample];
-      rnaProfile = samples$regulator_profiles_true[sampleIndex,replicate, tfIndex,];
+      rnaProfile = data$trueRegulator[replicate, ];
       proteinODEParams = c(degradation = samples$protein_degradation[sampleIndex, tfIndex], regulator = approxfun(detailedTime, rnaProfile, rule=2));  
       
       odeResults[sample,] = ode( y = c(x = samples$protein_initial_level[sampleIndex,replicate,tfIndex]), times = detailedTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
