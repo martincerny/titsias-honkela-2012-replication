@@ -91,16 +91,17 @@ transformed parameters {
   
   //TF protein synthesis
   for(replicate in 1:num_replicates) {
-    for (regulator in 1:num_regulators)
-    {
-      real synthesis_accumulator = protein_initial_level[replicate, regulator];
+    for(regulator in 1:num_regulators){
       real degradation_per_integration_step = exp(-protein_degradation[regulator] * integration_step);
-
-      for (time in 1:num_detailed_time) {
-        log_tf_profiles[replicate, time, regulator] = log(synthesis_accumulator);
+      real residual = -0.5 * integration_step * regulator_profiles_true[replicate,regulator,1];
+      
+      log_tf_profiles[replicate,1, regulator] = log(protein_initial_level[replicate, regulator]);
+      for (time in 2:num_detailed_time) {
+        real initial_residual = protein_initial_level[replicate, regulator] * exp(-protein_degradation[regulator] * (time - 1) * integration_step);
         
-        synthesis_accumulator = synthesis_accumulator * degradation_per_integration_step + regulator_profiles_true[replicate, regulator, time] * integration_step;      
-        }
+        residual = (residual + integration_step * regulator_profiles_true[replicate,regulator,time - 1]) * degradation_per_integration_step;
+        log_tf_profiles[replicate, time, regulator] = log(initial_residual + residual + 0.5 * integration_step * regulator_profiles_true[replicate, regulator, time]);
+      }
     }
   }  
   

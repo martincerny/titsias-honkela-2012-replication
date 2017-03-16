@@ -227,3 +227,52 @@ testNumericalIntegration <- function(numTargets = 5, numIntegrationPoints = 10, 
   }
   return (sqrt(totalError / (numTargets * length(simulatedData$experiments))))
 }
+
+proteinNumericalIntegration <- function(initialCondition, degradation, rna, numDetailedTime, numIntegrationPoints){
+  numericalResult = numeric(numDetailedTime);
+  numericalResult[1] = initialCondition
+  integrationTimeStep = 1 / numIntegrationPoints
+  
+  residual = -0.5 * (integrationTimeStep * rna[1]);
+  degradationPerStep = exp(-degradation * integrationTimeStep)
+  
+  for(detailedTime in 2:numDetailedTime){
+    residual = (residual + integrationTimeStep * rna[detailedTime - 1]) * degradationPerStep;
+    numericalResult[detailedTime] = initialCondition * exp(-degradation * (detailedTime - 1) * integrationTimeStep) + residual + 0.5 * (integrationTimeStep * rna[detailedTime])  
+  }
+  
+  return(numericalResult)
+}
+
+testProteinNumericalIntegration <- function(num = 5, numIntegrationPoints = 10, doPlot = TRUE)
+{
+  numTime = 10
+  numDetailedTime = (numTime - 1) * numIntegrationPoints + 1
+  detailedTime = seq(from = 1, by = 1/numIntegrationPoints, length.out = numDetailedTime);
+  totalError = 0
+  for(i in 1:num){
+    profile = 1.5 + cumsum(rnorm(numDetailedTime,0,1/numIntegrationPoints));
+    profile[profile < 0.05] = 0.05;
+    initialCondition = abs(rnorm(1,1,1))
+    degradation = abs(rnorm(1,1,1))
+    
+    numericalResult = proteinNumericalIntegration(initialCondition, degradation, profile, numDetailedTime, numIntegrationPoints)
+    numericalData = data.frame(time = detailedTime, value = numericalResult);
+    numericalData$type = "numeric";
+    
+    proteinODEParams = c(degradation = degradation, regulator = approxfun(detailedTime, profile, rule=2));  
+    odeResult = ode( y = c(x = initialCondition), times = detailedTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
+    
+    odeData = data.frame(time = detailedTime, value = odeResult);
+    odeData$type = "ode";
+    
+    allData = rbind(numericalData, odeData);
+    
+    if(doPlot){
+      print(ggplot(allData, aes(x = time, y = value, color = type)) + geom_line())
+    }
+    errors = numericalResult - odeResult;
+    totalError = totalError + mean(errors ^ 2)
+  }
+  return(sqrt(totalError / num))
+}

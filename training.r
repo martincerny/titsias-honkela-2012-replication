@@ -27,16 +27,31 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
   return(stan('training.stan', data = modelData, ...));
 }
 
-plotTrainingFit <- function(prediction, replicate, tfIndex, trueProtein, trueRNA, rnaSigma, numSamples = 20, title = "") {
-  true_value = exp(extract(prediction,pars="log_tf_profiles")$log_tf_profiles[,replicate,,tfIndex])
+plotTrainingFitGraphics <- function(samplesToPlot, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, title){
+  matplot(sampleTime, t(samplesToPlot), type="l", main = title) 
+  points(1:numTime - 0.1, trueRNA, pch=1, col = "lightblue");
+  arrows(1:numTime - 0.1, trueRNA - rnaSigma, 1:numTime - 0.1,trueRNA + rnaSigma ,length=0.05, angle=90, code=3, col = "lightblue")
+  points(sampleTime, trueProtein, pch=19);
+  
+}
+
+plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 20, title = "", useODE = FALSE) {
+  trueProtein = data$trueProtein[replicate,];
+  trueRNA = data$y[replicate,1,];
+  rnaSigma = data$yvar[replicate,1,];
+
+  samples = extract(prediction,pars=c("log_tf_profiles","regulator_profiles_true", "protein_initial_level","protein_degradation"));
+  true_value = samples$log_tf_profiles[,replicate,,tfIndex]
   
   numDetailedTime = length(trueProtein);
   numTime = length(trueRNA);
   
   detailedTime = ((1:numDetailedTime) - 1) * (numTime / (numDetailedTime + 1)) + 1;
   
-  samplesToPlot = true_value[sample(1:(dim(true_value)[1]),numSamples),];
+  sampleIndices = sample(1:(dim(true_value)[1]),numSamples);
   
+  
+  samplesToPlot = exp(true_value[sampleIndices,]);
   if(numDetailedTime == dim(samplesToPlot)[2])
   {
     sampleTime = detailedTime
@@ -45,10 +60,22 @@ plotTrainingFit <- function(prediction, replicate, tfIndex, trueProtein, trueRNA
   {
     sampleTime = 1:numTime
   }
-  matplot(sampleTime, t(samplesToPlot), type="l", main = title) 
-  points(1:numTime - 0.1, trueRNA, pch=1, col = "lightblue");
-  arrows(1:numTime - 0.1, trueRNA - rnaSigma, 1:numTime - 0.1,trueRNA + rnaSigma ,length=0.05, angle=90, code=3, col = "lightblue")
-  points(detailedTime, trueProtein, pch=19);
+
+  if(useODE)
+  {
+    odeResults = array(0, c(numSamples, numDetailedTime));
+    for(sample in 1:length(sampleIndices)){
+      sampleIndex = sampleIndices[sample];
+      rnaProfile = samples$regulator_profiles_true[sampleIndex,replicate, tfIndex,];
+      proteinODEParams = c(degradation = samples$protein_degradation[sampleIndex, tfIndex], regulator = approxfun(detailedTime, rnaProfile, rule=2));  
+      
+      odeResults[sample,] = ode( y = c(x = samples$protein_initial_level[sampleIndex,replicate,tfIndex]), times = detailedTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
+      
+    }
+    plotTrainingFitGraphics(odeResults, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, paste0(title," - ODE"));  
+  }
+    
+  plotTrainingFitGraphics(samplesToPlot, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, title)  
 }
 
 plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numSamples = 20, title = "", useODE = TRUE)
@@ -139,10 +166,10 @@ testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTarg
   trainResult = trainModel(simulatedData$regulatorSpots, simulatedData$targetSpots, simulatedData, numIntegrationPoints, ...);
   
   tryCatch({
-    for(replicate in 1:length(simulatedData$experiments)){
-      plotTrainingFit(trainResult,replicate,1,simulatedData$trueProtein[replicate,],simulatedData$y[replicate,1,], simulatedData$yvar[replicate,1,], title = replicate);
-    }
     plotAllTargetFits(trainResult, simulatedData);
+    for(replicate in 1:length(simulatedData$experiments)){
+      plotTrainingFit(trainResult,simulatedData,replicate,1, title = replicate, useODE = TRUE);
+    }
   }, error = function(e) {
     print(e);
   });
