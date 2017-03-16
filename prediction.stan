@@ -59,11 +59,9 @@ transformed parameters {
   
   //gene RNA synthesis
   { //new scope to make the variables local
-    //real degradation_per_unit_time = exp(-degradation);
     real basal_over_degradation = basal_transcription / degradation;
     real degradation_per_step = exp(-degradation * integration_step);
 
-//!Init -> time 1!
     for (replicate in 1:num_replicates)
     {
       real residual;
@@ -78,15 +76,21 @@ transformed parameters {
 
       //Calculating the integral by trapezoid rule in a single pass for all values
       residual = -0.5 * synthesis[1];
-      for (detailed_time in 2:num_detailed_time)
-      { 
-        residual = (residual + synthesis[detailed_time - 1]) * degradation_per_step;
+      for (time in 2:num_time) 
+      {
+        int detailed_time_base = (time - 2) * num_integration_points + 1; //detailed_time needs to start at 2 (so this starts at 1)
+        for (detailed_time_relative in 1:num_integration_points)
+        { 
+          int detailed_time = detailed_time_base + detailed_time_relative;
+          residual = (residual + synthesis[detailed_time - 1]) * degradation_per_step;
+        }
         
-        if((detailed_time - 1) % num_integration_points == 0) {
+        { //new block to let me define new vars
+          int detailed_time = detailed_time_base + num_integration_points;
           real integral_value = residual + 0.5 * synthesis[detailed_time];
-          int time = ((detailed_time -1) / num_integration_points) + 1;
           gene_profile_true[replicate, time] = basal_over_degradation + (initial_condition[replicate] - basal_over_degradation) * exp(-degradation * (time - 1)) + transcription_sensitivity * integral_value;
         }
+        
       }
     }
   }
