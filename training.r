@@ -168,7 +168,7 @@ testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTarg
   tryCatch({
     plotAllTargetFits(trainResult, simulatedData);
     for(replicate in 1:length(simulatedData$experiments)){
-      plotTrainingFit(trainResult,simulatedData,replicate,1, title = replicate, useODE = TRUE);
+      plotTrainingFit(trainResult, simulatedData, replicate,1, title = replicate, useODE = TRUE);
     }
   }, error = function(e) {
     print(e);

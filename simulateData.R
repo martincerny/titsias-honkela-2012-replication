@@ -124,6 +124,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     detailedTime = integrationTime,
     numIntegrationPoints = numIntegrationPoints,
     experiments = 1:numReplicates,
+    trueRegulator = regulatorReplicates,
     trueProtein = regulatorProtein,
     trueTargets = targetValues,
     targetSigma = targetSigma,
