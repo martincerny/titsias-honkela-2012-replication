@@ -25,6 +25,8 @@ data {
   vector<lower = 0>[num_time] gene_profiles_observed[num_replicates, num_genes];
   vector<lower = 0>[num_time] gene_profiles_sigma[num_replicates, num_genes];
   
+  vector<lower = 0>[num_regulators] protein_degradation;
+  
   //0 regulation impossible, 1 regulation possible
   int interaction_matrix[num_regulators, num_genes];
 }
@@ -57,7 +59,6 @@ parameters {
   vector[num_regulators] interaction_weights[num_genes];
 
   vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
-  vector<lower = 0>[num_regulators] protein_degradation;
   
 }
 

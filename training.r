@@ -19,6 +19,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
                    num_replicates = numReplicates,
                    regulator_profiles_true = array(normalizedData$trueRegulator,c(numReplicates, numRegulators,(numTime - 1) * num_integration_points + 1)),
                    num_genes = numGenes, 
+                   protein_degradation = array(normalizedData$proteinDegradation, c(1)),
                    gene_profiles_observed = array(normalizedData$y[, genesIndices ,], c(numReplicates, numGenes,  numTime)), 
                    gene_profiles_sigma = array(sqrt(normalizedData$yvar[,genesIndices, ]), c(numReplicates, numGenes,  numTime)), 
                    interaction_matrix = interactionMatrix
@@ -39,7 +40,7 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
   trueRNA = data$y[replicate,1,];
   rnaSigma = data$yvar[replicate,1,];
 
-  samples = extract(prediction,pars=c("log_tf_profiles","protein_initial_level","protein_degradation"));
+  samples = extract(prediction,pars=c("log_tf_profiles","protein_initial_level"));
   true_value = samples$log_tf_profiles[,replicate,,tfIndex]
   
   numDetailedTime = length(trueProtein);
@@ -66,7 +67,7 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
     for(sample in 1:length(sampleIndices)){
       sampleIndex = sampleIndices[sample];
       rnaProfile = data$trueRegulator[replicate, ];
-      proteinODEParams = c(degradation = samples$protein_degradation[sampleIndex, tfIndex], regulator = approxfun(detailedTime, rnaProfile, rule=2));  
+      proteinODEParams = c(degradation = data$proteinDegradation, regulator = approxfun(detailedTime, rnaProfile, rule=2));  
       
       odeResults[sample,] = ode( y = c(x = samples$protein_initial_level[sampleIndex,replicate,tfIndex]), times = detailedTime, func = proteinODE, parms = proteinODEParams, method = "ode45")[,"x"];
       
