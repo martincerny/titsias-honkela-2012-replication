@@ -20,6 +20,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
                    regulator_profiles_true = array(normalizedData$trueRegulator,c(numReplicates, numRegulators,(numTime - 1) * num_integration_points + 1)),
                    num_genes = numGenes, 
                    protein_degradation = array(normalizedData$proteinDegradation, c(1)),
+                   protein_initial_level = array(normalizedData$trueProtein[,1], c(3,1)),
                    gene_profiles_observed = array(normalizedData$y[, genesIndices ,], c(numReplicates, numGenes,  numTime)), 
                    gene_profiles_sigma = array(sqrt(normalizedData$yvar[,genesIndices, ]), c(numReplicates, numGenes,  numTime)), 
                    interaction_matrix = interactionMatrix
@@ -84,13 +85,13 @@ plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numS
   targetSigma = data$yvar[replicate,targetIndex + 1,]  
   trueTarget = data$trueTargets[replicate,targetIndex,]  
   
-  samples = extract(prediction,pars=c("gene_profiles_true","log_tf_profiles","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
-  sampleIndices = sample(1:(dim(samples$log_tf_profiles)[1]),numSamples);
+  samples = extract(prediction,pars=c("gene_profiles_true","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
+  sampleIndices = sample(1:(dim(samples$initial_condition)[1]),numSamples);
   
-  protein_profiles = exp(samples$log_tf_profiles[sampleIndices,replicate,,])
+  #protein_profiles = exp(samples$log_tf_profiles[sampleIndices,replicate,,])
   
-  numDetailedTime = dim(protein_profiles)[2];
   numTime = length(trueTarget);
+  numDetailedTime = (numTime - 1) * data$numIntegrationPoints + 1;
   
   detailedTime = ((1:numDetailedTime) - 1) * (numTime / (numDetailedTime + 1)) + 1;
   

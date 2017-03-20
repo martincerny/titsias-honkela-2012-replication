@@ -26,6 +26,7 @@ data {
   vector<lower = 0>[num_time] gene_profiles_sigma[num_replicates, num_genes];
   
   vector<lower = 0>[num_regulators] protein_degradation;
+  vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
   
   //0 regulation impossible, 1 regulation possible
   int interaction_matrix[num_regulators, num_genes];
@@ -36,6 +37,7 @@ transformed data {
   real integration_step = 1.0 / num_integration_points;
   vector[num_detailed_time] zero_mean;
   real detailed_time[num_detailed_time];
+  matrix[num_detailed_time, num_regulators] log_tf_profiles[num_replicates];
 
   //print("RegO:", regulator_profiles_observed);
   //print("RegSig:", regulator_profiles_sigma);
@@ -45,28 +47,7 @@ transformed data {
     detailed_time[i] = (i - 1) * integration_step + 1;
     zero_mean[i] = 0;
   }
-}
-
-parameters {
-  //vector<lower = 0>[num_genes] model_mismatch_sigma;
-
-  vector<lower = 0>[num_genes] initial_condition[num_replicates];
-  vector<lower = 0>[num_genes] basal_transcription;
-  vector<lower = 0>[num_genes] degradation;
-  vector<lower = 0>[num_genes] transcription_sensitivity;
-  vector[num_genes] interaction_bias;
   
-  vector[num_regulators] interaction_weights[num_genes];
-
-  vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
-  
-}
-
-transformed parameters {
-  matrix[num_detailed_time, num_regulators] log_tf_profiles[num_replicates];
-  vector[num_time] gene_profiles_true[num_replicates, num_genes];
-
-
   //TF protein synthesis
   for(replicate in 1:num_replicates) {
     for(regulator in 1:num_regulators){
@@ -81,9 +62,24 @@ transformed parameters {
         log_tf_profiles[replicate, time, regulator] = log(initial_residual + residual + 0.5 * integration_step * regulator_profiles_true[replicate, regulator, time]);
       }
     }
-  }  
+  }    
+}
+
+parameters {
+  //vector<lower = 0>[num_genes] model_mismatch_sigma;
+
+  vector<lower = 0>[num_genes] initial_condition[num_replicates];
+  vector<lower = 0>[num_genes] basal_transcription;
+  vector<lower = 0>[num_genes] degradation;
+  vector<lower = 0>[num_genes] transcription_sensitivity;
+  vector[num_genes] interaction_bias;
   
-  
+  vector[num_regulators] interaction_weights[num_genes];
+}
+
+transformed parameters {
+  vector[num_time] gene_profiles_true[num_replicates, num_genes];
+
 
   //----------First compute transformed data------------
   
