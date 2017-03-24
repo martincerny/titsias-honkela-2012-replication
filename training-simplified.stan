@@ -18,63 +18,26 @@ data {
   
   int num_integration_points;
   
-  int num_regulators; 
-  vector<lower=0>[count_num_detailed_time(num_time, num_integration_points)] regulator_profiles_true[num_replicates, num_regulators];
+  vector[count_num_detailed_time(num_time, num_integration_points)] log_tf_profiles[num_replicates];
   
   int num_genes;
   vector<lower = 0>[num_time] gene_profiles_observed[num_replicates, num_genes];
   vector<lower = 0>[num_time] gene_profiles_sigma[num_replicates, num_genes];
-  
-  vector<lower = 0>[num_regulators] protein_degradation;
-  vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
-  
-  //0 regulation impossible, 1 regulation possible
-  int interaction_matrix[num_regulators, num_genes];
 }
 
 transformed data {
   int num_detailed_time = count_num_detailed_time(num_time, num_integration_points);
   real integration_step = 1.0 / num_integration_points;
-  vector[num_detailed_time] zero_mean;
-  real detailed_time[num_detailed_time];
-  matrix[num_detailed_time, num_regulators] log_tf_profiles[num_replicates];
-
-  //print("RegO:", regulator_profiles_observed);
-  //print("RegSig:", regulator_profiles_sigma);
-
-  for (i in 1:num_detailed_time)  
-  {
-    detailed_time[i] = (i - 1) * integration_step + 1;
-    zero_mean[i] = 0;
-  }
-  
-  //TF protein synthesis
-  for(replicate in 1:num_replicates) {
-    for(regulator in 1:num_regulators){
-      real degradation_per_integration_step = exp(-protein_degradation[regulator] * integration_step);
-      real residual = -0.5 * integration_step * regulator_profiles_true[replicate,regulator,1];
-      
-      log_tf_profiles[replicate,1, regulator] = log(protein_initial_level[replicate, regulator]);
-      for (time in 2:num_detailed_time) {
-        real initial_residual = protein_initial_level[replicate, regulator] * exp(-protein_degradation[regulator] * (time - 1) * integration_step);
-        
-        residual = (residual + integration_step * regulator_profiles_true[replicate,regulator,time - 1]) * degradation_per_integration_step;
-        log_tf_profiles[replicate, time, regulator] = log(initial_residual + residual + 0.5 * integration_step * regulator_profiles_true[replicate, regulator, time]);
-      }
-    }
-  }    
 }
 
 parameters {
-  //vector<lower = 0>[num_genes] model_mismatch_sigma;
-
   vector<lower = 0>[num_genes] initial_condition[num_replicates];
   vector<lower = 0>[num_genes] basal_transcription;
   vector<lower = 0>[num_genes] degradation;
   vector<lower = 0>[num_genes] transcription_sensitivity;
   vector[num_genes] interaction_bias;
   
-  vector[num_regulators] interaction_weights[num_genes];
+  vector[num_genes] interaction_weights;
 }
 
 transformed parameters {
@@ -139,23 +102,12 @@ model {
   }
   
 
-  //Other priors
-  //Here we diverge from the original model. At least for simulated data, no prior on initial_condition works better
-  //for (replicate in 1:num_replicates) {
-  //  transcription_params_prior_lp(initial_condition[replicate]);
-  //}
-  
   transcription_params_prior_lp(basal_transcription);
   transcription_params_prior_lp(degradation);
   transcription_params_prior_lp(transcription_sensitivity);
   
   interaction_bias ~ normal(0,2);
 
-  //The following differs from the paper for simplicity (originally a conjugate inverse gamma)
-  //model_mismatch_sigma ~ cauchy(0, 2); 
-
-  for(regulator in 1:num_regulators) {
-    interaction_weights[regulator] ~ normal(0,2);
-  }
+  interaction_weights ~ normal(0,2);
 
 }

@@ -79,11 +79,11 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
   plotTrainingFitGraphics(samplesToPlot, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, title)  
 }
 
-plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numSamples = 20, title = "", useODE = TRUE)
+plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numSamples = 20, title = "", useODE = TRUE, dataIndex = targetIndex)
 {
-  observedTarget = data$y[replicate,targetIndex + 1,]  
-  targetSigma = data$yvar[replicate,targetIndex + 1,]  
-  trueTarget = data$trueTargets[replicate,targetIndex,]  
+  observedTarget = data$y[replicate,dataIndex + 1,]  
+  targetSigma = data$yvar[replicate,dataIndex + 1,]  
+  trueTarget = data$trueTargets[replicate,dataIndex,]  
   
   samples = extract(prediction,pars=c("gene_profiles_true","initial_condition","basal_transcription","degradation","transcription_sensitivity","interaction_bias","interaction_weights"))
   sampleIndices = sample(1:(dim(samples$initial_condition)[1]),numSamples);
@@ -133,7 +133,7 @@ plotAllTargetFits <- function(prediction, simulatedData, simulatedDataIndices = 
   for(target in 1:length(simulatedDataIndices)){
     for(replicate in 1:length(simulatedData$experiments)){
       simulatedIndex = simulatedDataIndices[target]
-      plotTrainingTargetFit(prediction,simulatedData, simulatedIndex, replicate, title = paste0("Target ", simulatedIndex,"-",replicate), useODE = useODE)
+      plotTrainingTargetFit(prediction,simulatedData, target, replicate, title = paste0("Target ", simulatedIndex,"-",replicate), useODE = useODE, dataIndex = simulatedIndex)
     }
   }
   
@@ -158,19 +158,31 @@ plotRegulatorFit <- function(prediction, data, replicate = 1, tfIndex = 1, numSa
   #points(detailedTime, trueProtein, pch=19);
 }
 
-testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTargets = 10, ...) {
+testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTargets = 10, targetIndices = NULL, ...) {
   if(is.null(simulatedData))
   {
     simulatedData = simulateData(c(0.8,0.7,0.2,0.3,0.6,1.5,2.7,0.9,0.8,0.6,0.2,1.6), numIntegrationPoints, numTargets = numTargets)
   }
-  
-  trainResult = trainModel(simulatedData$regulatorSpots, simulatedData$targetSpots, simulatedData, numIntegrationPoints, ...);
+
+  if(is.null(targetIndices)){
+    targetSpots = simulatedData$targetSpots
+  }
+  else {
+    targetSpots = simulatedData$targetSpots[targetIndices];
+  }
+    
+  trainResult = trainModel(simulatedData$regulatorSpots, targetSpots, simulatedData, numIntegrationPoints, ...);
   
   tryCatch({
-    plotAllTargetFits(trainResult, simulatedData);
-    for(replicate in 1:length(simulatedData$experiments)){
-      plotTrainingFit(trainResult, simulatedData, replicate,1, title = replicate, useODE = TRUE);
+    if(is.null(targetIndices)){
+      plotAllTargetFits(trainResult, simulatedData);
     }
+    else {
+      plotAllTargetFits(trainResult, simulatedData, simulatedDataIndices = targetIndices);
+    }
+    # for(replicate in 1:length(simulatedData$experiments)){
+    #   plotTrainingFit(trainResult, simulatedData, replicate,1, title = replicate, useODE = FALSE);
+    # }
   }, error = function(e) {
     print(e);
   });
