@@ -18,7 +18,7 @@ data {
   
   int num_integration_points;
   
-  vector[count_num_detailed_time(num_time, num_integration_points)] log_tf_profiles[num_replicates];
+  vector[count_num_detailed_time(num_time, num_integration_points)] log_tf_profiles_source[num_replicates];
   
   int num_genes;
   vector<lower = 0>[num_time] gene_profiles_observed[num_replicates, num_genes];
@@ -28,6 +28,14 @@ data {
 transformed data {
   int num_detailed_time = count_num_detailed_time(num_time, num_integration_points);
   real integration_step = 1.0 / num_integration_points;
+  vector[num_detailed_time] log_tf_profiles[num_replicates];
+  
+  for(replicate in 1:num_replicates) {
+    for(time in 1:num_detailed_time) {
+        log_tf_profiles[replicate, time] = log_tf_profiles_source[replicate, time];
+    }
+  }
+  
 }
 
 parameters {
@@ -37,11 +45,12 @@ parameters {
   vector<lower = 0>[num_genes] transcription_sensitivity;
   vector[num_genes] interaction_bias;
   
-  vector[num_genes] interaction_weights;
+  real interaction_weights[num_genes];
 }
 
 transformed parameters {
   vector[num_time] gene_profiles_true[num_replicates, num_genes];
+
 
 
   //----------First compute transformed data------------
@@ -60,7 +69,11 @@ transformed parameters {
       vector[num_detailed_time] regulation_input;
       vector[num_detailed_time] synthesis;
 
-      regulation_input = rep_vector(interaction_bias[gene], num_detailed_time) + log_tf_profiles[replicate] * interaction_weights[gene];
+      for(t in 1:num_detailed_time)
+      {
+        regulation_input[t] = interaction_bias[gene];
+        regulation_input[t] = regulation_input[t] + log_tf_profiles[replicate, t] * interaction_weights[gene];
+      }
 
       synthesis = integration_step * inv(1 + exp(-regulation_input));
       
