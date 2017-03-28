@@ -205,8 +205,8 @@ model {
   //The following differs from the paper for simplicity (originally a conjugate inverse gamma)
   //model_mismatch_sigma ~ cauchy(0, 2); 
 
-  for(regulator in 1:num_regulators) {
-    interaction_weights[regulator] ~ normal(0,2);
+  for(gene in 1:num_genes) {
+    interaction_weights[gene] ~ normal(0,2);
   }
 
 }
