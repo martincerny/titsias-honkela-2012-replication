@@ -63,7 +63,7 @@ parameters {
   vector<lower = 0>[num_regulators] protein_degradation;
   
   vector<lower=0>[num_regulators] gp_variance;
-  vector<lower=0>[num_regulators] gp_length;
+  vector<lower=1, upper=num_time>[num_regulators] gp_length;
 }
 
 transformed parameters {
@@ -183,7 +183,7 @@ model {
   }
   
   //in the paper, the prior is uniform, between the smallest difference a and squared length
-  gp_length ~ cauchy(5, 5);
+  //gp_length ~ cauchy(5, 5);
 
   gp_variance ~ cauchy(0, 2); //in the paper this prior is not specified
   
