@@ -23,6 +23,8 @@ testData <- function(n) {
                    num_integration_points = 10, 
                    num_replicates = reps,
                    log_tf_profiles = log(array(regulatorRep1,c(reps, 111))),
+                   log_tf_profiles_source = log(array(regulatorRep1,c(reps, 111))),
+                   num_regulators = 1,
                    num_genes = length(n), 
                    gene_profiles_observed = array(trainResult1$data$y[1:reps,n + 1,], c(reps, length(n), 12)), 
                    gene_profiles_sigma = array(sqrt(trainResult1$data$yvar[1:reps,n + 1,]), c(reps, length(n),  12))

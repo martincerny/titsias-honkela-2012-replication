@@ -13,12 +13,21 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
   numRegulators = length(regulatorIndices);
   numGenes = length(genesIndices);
   
+  numDetailedTime = (numTime - 1) * num_integration_points + 1;
+  logTfProfiles = array(0, c(numReplicates, numDetailedTime, 1));
+  for(rep in 1:numReplicates){
+    for(time in 1:numDetailedTime)
+    {
+      logTfProfiles[rep,time, 1] = log(normalizedData$trueProtein[rep, time]);
+    }
+  }
+  
   modelData = list(num_time = numTime, 
                    num_integration_points = num_integration_points, 
                    num_regulators = numRegulators, 
                    num_replicates = numReplicates,
-                   regulator_profiles_true = array(normalizedData$trueRegulator,c(numReplicates, numRegulators,(numTime - 1) * num_integration_points + 1)),
                    num_genes = numGenes, 
+                   log_tf_profiles = logTfProfiles,
                    protein_degradation = array(normalizedData$proteinDegradation, c(1)),
                    protein_initial_level = array(normalizedData$trueProtein[,1], c(3,1)),
                    gene_profiles_observed = array(normalizedData$y[, genesIndices ,], c(numReplicates, numGenes,  numTime)), 
@@ -101,7 +110,7 @@ plotTrainingTargetFit <- function(prediction, data, targetIndex, replicate, numS
     
     for(sample in 1:numSamples) {
       sampleId = sampleIndices[sample];
-      params = c(degradation = samples$degradation[sampleId,targetIndex], bias = samples$interaction_bias[sampleId,targetIndex], sensitivity = samples$transcription_sensitivity[sampleId,targetIndex], basalTranscription = samples$basal_transcription[sampleId,targetIndex], weight = samples$interaction_weights[sampleId,targetIndex,1],  protein = approxfun(detailedTime, protein_profiles[sample,], rule=2));
+      params = c(degradation = samples$degradation[sampleId,targetIndex], bias = samples$interaction_bias[sampleId,targetIndex], sensitivity = samples$transcription_sensitivity[sampleId,targetIndex], basalTranscription = samples$basal_transcription[sampleId,targetIndex], weight = samples$interaction_weights[sampleId,targetIndex,1],  protein = approxfun(detailedTime, data$trueProtein[replicate,], rule=2));
 
       integrated_profile[sample,] = ode( y = c(x = samples$initial_condition[sampleId,replicate, targetIndex]), times = 1:numTime, func = targetODE, parms = params, method = "ode45")[,"x"];
     }

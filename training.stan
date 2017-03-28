@@ -110,8 +110,6 @@ transformed parameters {
 }
 
 model {
-  
-  
   //-----------Now the actual model-------------------------------------
   
   for (replicate in 1:num_replicates) {
@@ -127,8 +125,7 @@ model {
   
   interaction_bias ~ normal(0,2);
 
-  for(regulator in 1:num_regulators) {
-    interaction_weights[regulator] ~ normal(0,2);
+  for (gene in 1:num_genes) {
+    interaction_weights[gene] ~ normal(0,2);
   }
-
 }

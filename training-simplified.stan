@@ -104,8 +104,6 @@ transformed parameters {
 }
 
 model {
-  
-  
   //-----------Now the actual model-------------------------------------
   
   for (replicate in 1:num_replicates) {
@@ -121,6 +119,9 @@ model {
   
   interaction_bias ~ normal(0,2);
 
+  print("Before:", target());
+  print("Value:", normal_lpdf(interaction_weights | 0,2));
   interaction_weights ~ normal(0,2);
 
+  print("After:", target());
 }
