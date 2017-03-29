@@ -1,6 +1,6 @@
 require(rstan)
 
-trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integration_points, ...)
+trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integration_points, modelFile = "training.stan", control = NULL,...)
 {
   regulatorIndices = rowIDsFromSpotNames(normalizedData, regulatorSpots);
   genesIndices = rowIDsFromSpotNames(normalizedData, genesSpots);
@@ -24,11 +24,17 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
                    gene_profiles_sigma = array(sqrt(normalizedData$yvar[,genesIndices, ]), c(numReplicates, numGenes,  numTime)), 
                    interaction_matrix = interactionMatrix
   );
-  return(stan('training.stan', data = modelData, ...));
+  if(is.null(control))
+  {
+    control = list(adapt_delta = 0.99)
+  }
+  
+  return(stan(modelFile, data = modelData, control = control, ...));
 }
 
 plotTrainingFitGraphics <- function(samplesToPlot, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, title){
-  matplot(sampleTime, t(samplesToPlot), type="l", main = title) 
+  ylim = c(0, max(c(max(samplesToPlot), max(trueProtein), max(trueRNA))))
+  matplot(sampleTime, t(samplesToPlot), type="l", main = title, ylim = ylim) 
   points(1:numTime - 0.1, trueRNA, pch=1, col = "lightblue");
   arrows(1:numTime - 0.1, trueRNA - rnaSigma, 1:numTime - 0.1,trueRNA + rnaSigma ,length=0.05, angle=90, code=3, col = "lightblue")
   points(sampleTime, trueProtein, pch=19);
@@ -40,7 +46,13 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
   trueRNA = data$y[replicate,1,];
   rnaSigma = data$yvar[replicate,1,];
 
-  samples = extract(prediction,pars=c("log_tf_profiles","regulator_profiles_true", "protein_initial_level","protein_degradation"));
+  if(useODE) 
+  {
+    samples = extract(prediction,pars=c("log_tf_profiles","regulator_profiles_true", "protein_initial_level","protein_degradation"));
+  }
+  else {
+    samples = extract(prediction,pars=c("log_tf_profiles"));
+  }
   true_value = samples$log_tf_profiles[,replicate,,tfIndex]
   
   numDetailedTime = length(trueProtein);
