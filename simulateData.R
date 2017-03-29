@@ -39,6 +39,8 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
     regulatorReplicates[i,] = regulatorProfile + rnorm(length(time), 0,1);
     regulatorReplicates[regulatorReplicates < 0.05] = 0.05;
   }
+  regulatorScale = mean(regulatorReplicates ^ 2);
+  regulatorReplicates = regulatorReplicates / sqrt(regulatorScale);
   
   step = 1/numIntegrationPoints;
   integrationTime = seq(from = 1, to = length(regulatorProfile) + 0.00001, by = step);
@@ -61,7 +63,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   regulatorObserved = array(0, c(numReplicates, length(time)));
   for(i in 1:numReplicates) 
   {
-    regulatorSigma[i,] =sigmaGenerator(length(time));
+    regulatorSigma[i,] =sigmaGenerator(length(time)) / regulatorScale;
     regulatorObserved[i,] = regulatorReplicates[i,] + (rnorm(length(time)) * regulatorSigma[i,]);
   }
 
@@ -106,9 +108,15 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
       
       targetSigma[j,i,] = sigmaGenerator(length(time));
       
-      targetObserved[j,i,] = targetValues[j,i,] + rnorm(length(time)) * targetSigma[j,i,]
-      
     }    
+    targetScale = mean(targetValues[,i,] ^ 2);
+    targetValues[,i,] = targetValues[,i,] / sqrt(targetScale);
+    targetSigma[,i,] = targetSigma[,i,] / targetScale;
+      
+    for(j in 1:numReplicates)
+    {
+      targetObserved[j,i,] = targetValues[j,i,] + rnorm(length(time)) * targetSigma[j,i,]
+    }
     
     spots[i + 1] = paste0("t",i);
   }
@@ -116,9 +124,11 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   observed = bindReplicates(regulatorObserved, targetObserved);
   observed[observed <= 0.05] = 0.05;
   
+  yvar = bindReplicates(regulatorSigma, targetSigma)
+  
   data = list(
     y = observed,
-    yvar = bindReplicates(regulatorSigma, targetSigma),
+    yvar = yvar,
     genes = spots,
     times = time,
     detailedTime = integrationTime,
