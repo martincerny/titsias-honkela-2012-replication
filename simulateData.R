@@ -28,7 +28,7 @@ bindReplicates <- function(a,b) {
   abind(a,b, along = 2);
 }
 
-simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets = 4, numReplicates = 3)
+simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets = 4, numReplicates = 3, positiveOnly = FALSE)
 {
   time = 1:length(regulatorProfile);
   
@@ -56,6 +56,10 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   bias = rnorm(numTargets, 0, 1);
   
   interactionWeights = rnorm(numTargets, 0, 2);
+  if(positiveOnly)
+  {
+    interactionWeights = abs(interactionWeights)
+  }
   
   sigmaGenerator <- function(len) {abs(rcauchy(len,0,0.1)) + 0.00001};
   
@@ -95,6 +99,11 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
       bias[i] = rnorm(1, 0,1);
       interactionWeights[i] = rnorm(1, -0,2);
 
+      if(positiveOnly)
+      {
+        interactionWeights[i] = abs(interactionWeights[i])
+      }
+      
     }
     while((sensitivity[i]) / degradation[i] < 0.5) {
       degradation[i] = exp(rnorm(1, 2,1));
