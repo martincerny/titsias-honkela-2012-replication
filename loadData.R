@@ -46,7 +46,9 @@ final_training_genes = sprintf("FBgn%07d",final_training_genes_ids)
 
 rm(final_training_genes_ids)
 
-final_training_spots = unlist(lapply(final_training_genes, spotsFromFBgn, mapping=mapping))
+#final_training_spots = unlist(lapply(final_training_genes, spotsFromFBgn, mapping=mapping))
+#Taking only the first spots...
+final_training_spots = unlist(lapply(final_training_genes, function(x) { spotsFromFBgn(mapping, x)[1] }))
 
 twiSpotNames = spotsFromSymbol(mapping, "twi")
 allTFSpots =  unlist(lapply(c("tin","bin","twi","bap","Mef2"), function(x) { spotsFromSymbol(mapping,x) } ))
