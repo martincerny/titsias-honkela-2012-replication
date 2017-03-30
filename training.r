@@ -17,7 +17,7 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
                    num_integration_points = num_integration_points, 
                    num_regulators = numRegulators, 
                    num_replicates = numReplicates,
-                   regulator_profiles_observed = array(normalizedData$trueProtein, c(numReplicates, numRegulators,numTime)), 
+                   regulator_profiles_observed = array(normalizedData$y[,regulatorIndices,], c(numReplicates, numRegulators,numTime)), 
                    regulator_profiles_sigma = array(sqrt(normalizedData$yvar[,regulatorIndices,]),c(numReplicates,numRegulators,numTime)), 
                    num_genes = numGenes, 
                    gene_profiles_observed = array(normalizedData$y[, genesIndices ,], c(numReplicates, numGenes,  numTime)), 
@@ -26,10 +26,83 @@ trainModel <- function(regulatorSpots, genesSpots, normalizedData, num_integrati
   );
   if(is.null(control))
   {
-    control = list(adapt_delta = 0.99)
+    control = list(adapt_delta = 0.95)
   }
   
   return(stan(modelFile, data = modelData, control = control, ...));
+}
+
+plotTrainingResult <- function(prediction, replicate, tfIndex, numSamples = 20, samples = NULL, title = "") {
+  if(is.null(samples))
+  {
+    samples = extract(prediction,pars=c("log_tf_profiles"));
+  }
+  
+  true_value = samples$log_tf_profiles[,replicate,,tfIndex]
+    
+  numDetailedTime = dim(true_value)[2];
+  numTime = prediction@par_dims$gene_profiles_true[3];
+
+  detailedTime = ((1:numDetailedTime) - 1) * (numTime / (numDetailedTime + 1)) + 1;
+  
+  sampleIndices = sample(1:(dim(true_value)[1]),numSamples);
+  
+  samplesToPlot = exp(true_value[sampleIndices,]);
+
+  matplot(detailedTime, t(samplesToPlot), type="l", main = title, ylim = c(0,10)) 
+}
+
+plotAllTrainingResults <- function(prediction, numSamples = 20) {
+  numReplicates = prediction@par_dims$regulator_profiles_true[1] 
+  numTFs = prediction@par_dims$regulator_profiles_true[2]
+  for(tf in 1:numTFs)
+  {
+    for(replicate in 1:numReplicates)
+    {
+      plotTrainingResult(prediction, replicate, tf, title = paste0(tf," - ", replicate))
+    }
+  }
+}  
+
+plotTrainingTargetResult <- function(prediction, replicate, targetIndex, observedProfile =NULL, observedSigma = NULL, numSamples = 20, title = "", samples = NULL) {
+  if(is.null(samples))
+  {
+    samples = extract(prediction,pars=c("gene_profiles_true"));
+  }
+  true_value = samples$gene_profiles_true[,replicate,targetIndex,]
+  
+  numTime = prediction@par_dims$gene_profiles_true[3];
+  
+  sampleIndices = sample(1:(dim(true_value)[1]),numSamples);
+  
+  samplesToPlot = true_value[sampleIndices,];
+  
+  ylim = c(0, min(10,max(samplesToPlot)))
+  matplot(1:numTime, t(samplesToPlot), type="l", main = title, ylim = ylim) 
+  if(!is.null(observedProfile))
+  {
+    points(1:numTime, observedProfile, pch=19);
+    if(!is.null(observedSigma)){
+      arrows(1:numTime, observedProfile - observedSigma - 0.001, 1:numTime,observedProfile + observedSigma ,length=0.05, angle=90, code=3)
+    }
+  }
+}
+
+plotAllTrainingTargetResults <- function(prediction, data, geneSpots,  numSamples = 20) {
+  geneIndices = rowIDsFromSpotNames(data, geneSpots);
+  
+  samples = extract(prediction,pars=c("gene_profiles_true"));
+ 
+  numReplicates = prediction@par_dims$gene_profiles_true[1] 
+  numTargets = prediction@par_dims$gene_profiles_true[2]
+  for(target in 1:numTargets)
+  {
+    for(replicate in 1:numReplicates)
+    {
+      plotTrainingTargetResult(prediction, replicate, target, title = paste0(geneSpots[target]," - ", replicate), observedProfile = data$y[replicate, geneIndices[target],], observedSigma = data$yvar[replicate, geneIndices[target],])
+    }
+  }
+  
 }
 
 plotTrainingFitGraphics <- function(samplesToPlot, trueProtein, trueRNA, rnaSigma,numTime, sampleTime, title){
@@ -164,8 +237,12 @@ plotRegulatorFit <- function(prediction, data, replicate = 1, tfIndex = 1, numSa
   matplot(detailedTime, t(samplesToPlot), type="l", main = title) 
   values = data$y[replicate,tfIndex,];
   sigma = data$yvar[replicate,tfIndex,];
-  points(1:numTime - 0.1, values, pch=19);
-  arrows(1:numTime - 0.1, values - sigma, 1:numTime - 0.1,values + sigma ,length=0.05, angle=90, code=3)
+  trueValues = data$trueRegulator[replicate,];
+  
+  points(1:numTime - 0.1, values, pch=1, col = "lightblue");
+  arrows(1:numTime - 0.1, values - sigma, 1:numTime - 0.1,values + sigma ,length=0.05, angle=90, code=3, col = "lightblue")
+  points(1:numTime, trueValues, pch=19);
+  arrows(1:numTime, trueValues - sigma, 1:numTime,trueValues + sigma ,length=0.05, angle=90, code=3)
   #points(detailedTime, trueProtein, pch=19);
 }
 
