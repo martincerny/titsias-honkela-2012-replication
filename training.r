@@ -49,7 +49,8 @@ plotTrainingResult <- function(prediction, replicate, tfIndex, numSamples = 20, 
   
   samplesToPlot = exp(true_value[sampleIndices,]);
 
-  matplot(detailedTime, t(samplesToPlot), type="l", main = title, ylim = c(0,10)) 
+  ylim = c(0, min(10,max(samplesToPlot)))
+  matplot(detailedTime, t(samplesToPlot), type="l", main = title, ylim = ylim) 
 }
 
 plotAllTrainingResults <- function(prediction, numSamples = 20) {
@@ -137,6 +138,12 @@ plotTrainingFit <- function(prediction, data, replicate, tfIndex, numSamples = 2
   
   
   samplesToPlot = exp(true_value[sampleIndices,]);
+  
+  
+  # for(s in 1:numSamples){
+  #   samplesToPlot[s,] = samplesToPlot[s,] - trueProtein;
+  # }
+  
   if(numDetailedTime == dim(samplesToPlot)[2])
   {
     sampleTime = detailedTime
@@ -257,7 +264,7 @@ testTraining <- function(simulatedData = NULL,numIntegrationPoints = 10, numTarg
   tryCatch({
     plotAllTargetFits(trainResult, simulatedData);
     for(replicate in 1:length(simulatedData$experiments)){
-      plotTrainingFit(trainResult, simulatedData, replicate,1, title = replicate, useODE = TRUE);
+      plotTrainingFit(trainResult, simulatedData, replicate,1, title = replicate, useODE = FALSE);
     }
   }, error = function(e) {
     print(e);
