@@ -59,7 +59,6 @@ parameters {
   
   vector[num_regulators] interaction_weights[num_genes];
 
-  vector<lower = 0>[num_regulators] protein_initial_level[num_replicates];
   vector<lower = 0>[num_regulators] protein_degradation;
   
   vector<lower=0>[num_regulators] gp_variance;
@@ -95,12 +94,11 @@ transformed parameters {
       real degradation_per_integration_step = exp(-protein_degradation[regulator] * integration_step);
       real residual = -0.5 * integration_step * regulator_profiles_true[replicate,regulator,1];
       
-      log_tf_profiles[replicate,1, regulator] = log(protein_initial_level[replicate, regulator]);
+      log_tf_profiles[replicate,1, regulator] = log(0.001);
       for (time in 2:num_detailed_time) {
-        real initial_residual = protein_initial_level[replicate, regulator] * exp(-protein_degradation[regulator] * (time - 1) * integration_step);
         
         residual = (residual + integration_step * regulator_profiles_true[replicate,regulator,time - 1]) * degradation_per_integration_step;
-        log_tf_profiles[replicate, time, regulator] = log(initial_residual + residual + 0.5 * integration_step * regulator_profiles_true[replicate, regulator, time]);
+        log_tf_profiles[replicate, time, regulator] = log(residual + 0.5 * integration_step * regulator_profiles_true[replicate, regulator, time]);
       }
     }
   }  
@@ -191,7 +189,6 @@ model {
   //Other priors
   for (replicate in 1:num_replicates) {
     transcription_params_prior_lp(initial_condition[replicate]);
-    transcription_params_prior_lp(protein_initial_level[replicate]);
   }
   
   transcription_params_prior_lp(basal_transcription);

@@ -46,7 +46,7 @@ simulateData <- function(regulatorProfile, numIntegrationPoints = 10,numTargets 
   integrationTime = seq(from = 1, to = length(regulatorProfile) + 0.00001, by = step);
   
   proteinDegradation = 0.4;#exp(rnorm(1, -0.5,0.3));
-  proteinInitialLevel = exp(rnorm(1, -0.5,0.3));
+  proteinInitialLevel = 0.001;#exp(rnorm(1, -0.5,0.3));
   
   initialConditions = array(exp(rnorm(numTargets * numReplicates, -0.5,1)), c(numReplicates, numTargets));
   basalTranscription = exp(rnorm(numTargets, -0.8,0.2));
